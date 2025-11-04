@@ -12,6 +12,7 @@ pub struct Config {
     pub strategy: StrategyConfig,
     pub risk: RiskConfig,
     pub symbols: SymbolConfig,
+    pub dry_run: DryRunConfig,
 }
 
 #[derive(Debug, Clone)]
@@ -33,6 +34,13 @@ pub struct RiskConfig {
 pub struct SymbolConfig {
     pub perp_symbol: String,
     pub spot_symbol: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct DryRunConfig {
+    pub enabled: bool,
+    pub fill_delay_ms: u64,
+    pub fill_success_rate: u8,
 }
 
 impl Config {
@@ -78,6 +86,22 @@ impl Config {
             spot_symbol: env::var("SPOT_SYMBOL").unwrap_or_else(|_| "HYPE".to_string()),
         };
 
+        let dry_run = DryRunConfig {
+            enabled: env::var("DRY_RUN")
+                .unwrap_or_else(|_| "false".to_string())
+                .parse()
+                .unwrap_or(false),
+            fill_delay_ms: env::var("DRY_RUN_FILL_DELAY_MS")
+                .unwrap_or_else(|_| "50".to_string())
+                .parse()
+                .unwrap_or(50),
+            fill_success_rate: env::var("DRY_RUN_FILL_SUCCESS_RATE")
+                .unwrap_or_else(|_| "95".to_string())
+                .parse()
+                .unwrap_or(95)
+                .min(100), // Cap at 100%
+        };
+
         Ok(Config {
             api_url,
             ws_url,
@@ -86,6 +110,7 @@ impl Config {
             strategy,
             risk,
             symbols,
+            dry_run,
         })
     }
 }

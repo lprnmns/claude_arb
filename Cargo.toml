@@ -46,6 +46,9 @@ parking_lot = "0.12"
 futures = "0.3"
 futures-util = "0.3"
 
+# Random number generation (for dry-run simulation)
+rand = "0.8"
+
 [profile.release]
 opt-level = 3
 lto = true

@@ -42,6 +42,17 @@ async fn main() {
             info!("   BPS Threshold: {}", cfg.strategy.bps_threshold);
             info!("   Position Size: ${}", cfg.strategy.position_size_usd);
             info!("   Leverage: {}x", cfg.strategy.leverage);
+
+            if cfg.dry_run.enabled {
+                warn!("🔶 DRY RUN MODE ENABLED 🔶");
+                warn!("   Orders will be SIMULATED (no real trades)");
+                warn!("   Fill delay: {}ms", cfg.dry_run.fill_delay_ms);
+                warn!("   Fill success rate: {}%", cfg.dry_run.fill_success_rate);
+                warn!("   Set DRY_RUN=false for real trading");
+            } else {
+                warn!("⚠️  LIVE TRADING MODE - Real money at risk!");
+            }
+
             cfg
         }
         Err(e) => {
@@ -293,14 +304,46 @@ async fn execute_entry(
     client: &Arc<HyperliquidClient>,
 ) -> anyhow::Result<rust_decimal::Decimal> {
     let orders = strategy.build_entry_orders()?;
+    let config = &strategy.config;
 
-    info!("Placing {} entry orders", orders.len());
+    info!("Placing {} entry orders (IOC)", orders.len());
 
-    let responses = client.place_batch_orders(orders.clone()).await?;
+    if config.dry_run.enabled {
+        // DRY RUN: Simulate order execution
+        info!("📝 DRY RUN: Simulating entry orders...");
 
-    // Verify both orders were filled
-    if responses.len() != 2 {
-        return Err(anyhow::anyhow!("Unexpected number of responses"));
+        // Simulate network latency
+        tokio::time::sleep(Duration::from_millis(config.dry_run.fill_delay_ms)).await;
+
+        // Simulate random success/failure based on fill_success_rate
+        let success = rand::random::<u8>() < config.dry_run.fill_success_rate;
+
+        if !success {
+            warn!("📝 DRY RUN: Simulated REJECTION ({}% fill rate)",
+                  config.dry_run.fill_success_rate);
+            return Err(anyhow::anyhow!("Simulated order rejection"));
+        }
+
+        for (i, order) in orders.iter().enumerate() {
+            info!("📝 DRY RUN: Order {} FILLED - {} {} @ ${}",
+                  i+1,
+                  match order.side {
+                      Side::Buy => "BUY",
+                      Side::Sell => "SELL",
+                  },
+                  order.size,
+                  order.price);
+        }
+
+        info!("✅ DRY RUN: Entry execution simulated successfully");
+    } else {
+        // LIVE: Real order execution
+        let responses = client.place_batch_orders(orders.clone()).await?;
+
+        // Verify both orders were filled
+        if responses.len() != 2 {
+            return Err(anyhow::anyhow!("Unexpected number of responses"));
+        }
     }
 
     // Return position size (use perp size as reference)
@@ -313,10 +356,38 @@ async fn execute_exit(
     position_size: rust_decimal::Decimal,
 ) -> anyhow::Result<()> {
     let orders = strategy.build_exit_orders(position_size)?;
+    let config = &strategy.config;
 
-    info!("Placing {} exit orders (ALO)", orders.len());
+    info!("Placing {} exit orders (ALO - maker only)", orders.len());
 
-    let _responses = client.place_batch_orders(orders).await?;
+    if config.dry_run.enabled {
+        // DRY RUN: Simulate ALO order placement
+        info!("📝 DRY RUN: Simulating ALO exit orders...");
+
+        // Simulate order placement latency
+        tokio::time::sleep(Duration::from_millis(config.dry_run.fill_delay_ms)).await;
+
+        for (i, order) in orders.iter().enumerate() {
+            info!("📝 DRY RUN: ALO Order {} PLACED - {} {} @ ${}",
+                  i+1,
+                  match order.side {
+                      Side::Buy => "BUY",
+                      Side::Sell => "SELL",
+                  },
+                  order.size,
+                  order.price);
+        }
+
+        // Simulate random fill time (2-10 seconds for ALO)
+        let fill_delay = rand::random::<u64>() % 8000 + 2000; // 2-10s
+        info!("📝 DRY RUN: Waiting for ALO fills (~{}ms)...", fill_delay);
+        tokio::time::sleep(Duration::from_millis(fill_delay)).await;
+
+        info!("✅ DRY RUN: ALO orders filled (simulated)");
+    } else {
+        // LIVE: Real ALO order placement
+        let _responses = client.place_batch_orders(orders).await?;
+    }
 
     Ok(())
 }
@@ -327,14 +398,37 @@ async fn execute_force_close(
     position_size: rust_decimal::Decimal,
 ) -> anyhow::Result<()> {
     let orders = strategy.build_exit_orders_ioc(position_size)?;
+    let config = &strategy.config;
 
     info!("Placing {} force close orders (IOC with 0.1% slippage)", orders.len());
 
-    let responses = client.place_batch_orders(orders).await?;
+    if config.dry_run.enabled {
+        // DRY RUN: Simulate IOC force close
+        info!("📝 DRY RUN: Simulating IOC force close...");
 
-    // Verify both orders were filled
-    if responses.len() != 2 {
-        return Err(anyhow::anyhow!("Force close: unexpected number of responses"));
+        // IOC is always fast
+        tokio::time::sleep(Duration::from_millis(config.dry_run.fill_delay_ms)).await;
+
+        for (i, order) in orders.iter().enumerate() {
+            info!("📝 DRY RUN: IOC Order {} FILLED - {} {} @ ${} (with slippage)",
+                  i+1,
+                  match order.side {
+                      Side::Buy => "BUY",
+                      Side::Sell => "SELL",
+                  },
+                  order.size,
+                  order.price);
+        }
+
+        info!("✅ DRY RUN: Force close successful (simulated)");
+    } else {
+        // LIVE: Real IOC force close
+        let responses = client.place_batch_orders(orders).await?;
+
+        // Verify both orders were filled
+        if responses.len() != 2 {
+            return Err(anyhow::anyhow!("Force close: unexpected number of responses"));
+        }
     }
 
     Ok(())

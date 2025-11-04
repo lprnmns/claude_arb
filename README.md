@@ -67,6 +67,28 @@ High-performance arbitrage bot for trading perp-spot spread on Hyperliquid DEX.
 - **Spot**: Long with 1x (no leverage)
 - **Sizing**: Based on USD position size and leverage
 
+## Testing Without Capital (DRY-RUN Mode)
+
+⭐ **Test the bot without risking real money!**
+
+```bash
+# 1. Enable dry-run mode in .env
+DRY_RUN=true
+
+# 2. Run the bot
+cargo run
+
+# 3. Watch simulated trades with real market data
+# - Real WebSocket orderbook updates
+# - Real BPS calculations
+# - Simulated order execution
+# - Full P&L tracking
+```
+
+See [DRY_RUN_GUIDE.md](DRY_RUN_GUIDE.md) for detailed testing instructions.
+
+---
+
 ## Configuration
 
 Edit `.env` file:
