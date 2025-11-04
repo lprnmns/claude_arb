@@ -233,14 +233,38 @@ async fn run_trading_loop(
                                 warn!("⏰ ALO timeout, forcing close with IOC");
 
                                 if let Some(size) = position_size {
-                                    // Cancel pending orders
-                                    let _ = client.cancel_all_orders(&strategy.config.symbols.perp_symbol).await;
-                                    let _ = client.cancel_all_orders(&strategy.config.symbols.spot_symbol).await;
+                                    // Cancel pending ALO orders
+                                    if let Err(e) = client.cancel_all_orders(&strategy.config.symbols.perp_symbol).await {
+                                        error!("Failed to cancel perp orders: {}", e);
+                                    }
+                                    if let Err(e) = client.cancel_all_orders(&strategy.config.symbols.spot_symbol).await {
+                                        error!("Failed to cancel spot orders: {}", e);
+                                    }
 
-                                    // Force close
-                                    // TODO: Implement force close with IOC
+                                    // Force close with IOC (slightly worse prices for guaranteed fill)
+                                    info!("🚨 Force closing with IOC (0.1% slippage buffer)");
+
+                                    match execute_force_close(&strategy, client, size).await {
+                                        Ok(_) => {
+                                            info!("✅ Force close successful!");
+
+                                            // Calculate PnL (will be slightly less due to slippage)
+                                            if let Some(profit_bps) = strategy.estimated_profit_bps() {
+                                                let profit_usd = profit_bps * size;
+                                                risk_manager.record_trade(profit_usd);
+                                                warn!("⚠️ Exit with IOC slippage: ~${:.2}", profit_usd);
+                                            }
+                                        }
+                                        Err(e) => {
+                                            error!("❌ Force close FAILED: {}", e);
+                                            error!("💀 CRITICAL: Manual intervention required!");
+                                            // Don't clear state, will retry next loop
+                                            continue;
+                                        }
+                                    }
 
                                     strategy.set_state(ArbitrageState::Idle);
+                                    strategy.clear_entry();
                                     position_size = None;
                                     exit_order_time = None;
                                 }
@@ -293,6 +317,25 @@ async fn execute_exit(
     info!("Placing {} exit orders (ALO)", orders.len());
 
     let _responses = client.place_batch_orders(orders).await?;
+
+    Ok(())
+}
+
+async fn execute_force_close(
+    strategy: &ArbitrageStrategy,
+    client: &Arc<HyperliquidClient>,
+    position_size: rust_decimal::Decimal,
+) -> anyhow::Result<()> {
+    let orders = strategy.build_exit_orders_ioc(position_size)?;
+
+    info!("Placing {} force close orders (IOC with 0.1% slippage)", orders.len());
+
+    let responses = client.place_batch_orders(orders).await?;
+
+    // Verify both orders were filled
+    if responses.len() != 2 {
+        return Err(anyhow::anyhow!("Force close: unexpected number of responses"));
+    }
 
     Ok(())
 }

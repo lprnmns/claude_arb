@@ -3,6 +3,7 @@ use crate::errors::{BotError, Result};
 use crate::orderbook::Orderbook;
 use crate::types::*;
 use rust_decimal::Decimal;
+use std::str::FromStr;
 use std::sync::Arc;
 use tracing::{debug, info};
 
@@ -233,6 +234,49 @@ impl ArbitrageStrategy {
                 size: position_size,
                 order_type: OrderType::Limit,
                 time_in_force: TimeInForce::ALO,
+                reduce_only: true,
+            },
+        ];
+
+        Ok(orders)
+    }
+
+    /// Build exit orders with IOC (for force close)
+    pub fn build_exit_orders_ioc(&self, position_size: Decimal) -> Result<Vec<OrderRequest>> {
+        let perp_bid = self
+            .perp_orderbook
+            .best_bid()
+            .ok_or_else(|| BotError::InvalidState("No perp bid available".into()))?;
+
+        let spot_ask = self
+            .spot_orderbook
+            .best_ask()
+            .ok_or_else(|| BotError::InvalidState("No spot ask available".into()))?;
+
+        // IOC for immediate execution (force close)
+        // Use slightly worse prices to ensure fill
+        let perp_price = perp_bid.price * (Decimal::ONE + Decimal::from_str_exact("0.001").unwrap()); // +0.1% slippage
+        let spot_price = spot_ask.price * (Decimal::ONE - Decimal::from_str_exact("0.001").unwrap()); // -0.1% slippage
+
+        let orders = vec![
+            // Close short perp (buy back)
+            OrderRequest {
+                symbol: self.config.symbols.perp_symbol.clone(),
+                side: Side::Buy,
+                price: perp_price,
+                size: position_size,
+                order_type: OrderType::Limit,
+                time_in_force: TimeInForce::IOC,
+                reduce_only: true,
+            },
+            // Close long spot (sell)
+            OrderRequest {
+                symbol: self.config.symbols.spot_symbol.clone(),
+                side: Side::Sell,
+                price: spot_price,
+                size: position_size,
+                order_type: OrderType::Limit,
+                time_in_force: TimeInForce::IOC,
                 reduce_only: true,
             },
         ];
