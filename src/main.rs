@@ -1,0 +1,300 @@
+mod api;
+mod config;
+mod errors;
+mod orderbook;
+mod risk;
+mod strategy;
+mod types;
+mod websocket;
+
+use api::HyperliquidClient;
+use config::Config;
+use orderbook::Orderbook;
+use risk::RiskManager;
+use strategy::ArbitrageStrategy;
+use types::*;
+use websocket::WebSocketManager;
+
+use std::sync::Arc;
+use std::time::Duration;
+use tokio::signal;
+use tokio::time::{interval, sleep};
+use tracing::{error, info, warn};
+use tracing_subscriber;
+
+#[tokio::main]
+async fn main() {
+    // Initialize logging
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::from_default_env()
+                .add_directive(tracing::Level::INFO.into()),
+        )
+        .init();
+
+    info!("🚀 Hyperliquid Arbitrage Bot starting...");
+
+    // Load configuration
+    let config = match Config::from_env() {
+        Ok(cfg) => {
+            info!("✅ Configuration loaded successfully");
+            info!("   Wallet: {}", cfg.wallet_address);
+            info!("   BPS Threshold: {}", cfg.strategy.bps_threshold);
+            info!("   Position Size: ${}", cfg.strategy.position_size_usd);
+            info!("   Leverage: {}x", cfg.strategy.leverage);
+            cfg
+        }
+        Err(e) => {
+            error!("❌ Configuration error: {}", e);
+            std::process::exit(1);
+        }
+    };
+
+    // Initialize components
+    info!("🔧 Initializing components...");
+
+    let client = match HyperliquidClient::new(config.api_url.clone(), config.private_key.clone()) {
+        Ok(c) => {
+            info!("✅ API client initialized");
+            Arc::new(c)
+        }
+        Err(e) => {
+            error!("❌ Failed to initialize API client: {}", e);
+            std::process::exit(1);
+        }
+    };
+
+    // Create orderbooks
+    let perp_orderbook = Arc::new(Orderbook::new(format!("{}-PERP", config.symbols.perp_symbol)));
+    let spot_orderbook = Arc::new(Orderbook::new(format!("{}-SPOT", config.symbols.spot_symbol)));
+
+    // Initialize WebSocket manager
+    let ws_manager = WebSocketManager::new(config.ws_url.clone());
+
+    // Subscribe to orderbook updates
+    info!("📡 Subscribing to orderbook updates...");
+
+    if let Err(e) = ws_manager
+        .subscribe_orderbook(config.symbols.perp_symbol.clone(), perp_orderbook.clone())
+        .await
+    {
+        error!("Failed to subscribe to perp orderbook: {}", e);
+        std::process::exit(1);
+    }
+
+    if let Err(e) = ws_manager
+        .subscribe_orderbook(config.symbols.spot_symbol.clone(), spot_orderbook.clone())
+        .await
+    {
+        error!("Failed to subscribe to spot orderbook: {}", e);
+        std::process::exit(1);
+    }
+
+    // Wait for initial orderbook data
+    info!("⏳ Waiting for initial orderbook data...");
+    sleep(Duration::from_secs(3)).await;
+
+    // Initialize strategy and risk manager
+    let mut strategy = ArbitrageStrategy::new(
+        config.clone(),
+        perp_orderbook.clone(),
+        spot_orderbook.clone(),
+    );
+
+    let risk_manager = RiskManager::new(config.risk.clone());
+
+    info!("✅ All components initialized");
+    info!("🎯 Starting trading loop...");
+    info!("   Press Ctrl+C to stop");
+
+    // Run main trading loop
+    if let Err(e) = run_trading_loop(
+        &mut strategy,
+        &risk_manager,
+        &client,
+        perp_orderbook,
+        spot_orderbook,
+    )
+    .await
+    {
+        error!("❌ Trading loop error: {}", e);
+    }
+
+    info!("👋 Bot stopped");
+}
+
+async fn run_trading_loop(
+    strategy: &mut ArbitrageStrategy,
+    risk_manager: &RiskManager,
+    client: &Arc<HyperliquidClient>,
+    perp_orderbook: Arc<Orderbook>,
+    spot_orderbook: Arc<Orderbook>,
+) -> anyhow::Result<()> {
+    let mut check_interval = interval(Duration::from_millis(100)); // Check every 100ms for low latency
+    let mut stats_interval = interval(Duration::from_secs(60)); // Log stats every minute
+
+    let mut position_size: Option<rust_decimal::Decimal> = None;
+    let mut exit_order_time: Option<std::time::Instant> = None;
+
+    loop {
+        tokio::select! {
+            _ = signal::ctrl_c() => {
+                info!("Received Ctrl+C, shutting down...");
+                break;
+            }
+
+            _ = check_interval.tick() => {
+                // Display current BPS
+                if let Some(bps) = strategy.calculate_bps() {
+                    let perp_ask = perp_orderbook.best_ask();
+                    let spot_bid = spot_orderbook.best_bid();
+
+                    if perp_ask.is_some() && spot_bid.is_some() {
+                        // Check for entry signal
+                        if let Some(signal) = strategy.should_enter() {
+                            // Check risk limits
+                            if let Err(e) = risk_manager.can_open_position(strategy.calculate_position_size(spot_bid.unwrap().price)) {
+                                warn!("Cannot open position: {}", e);
+                                continue;
+                            }
+
+                            info!("🚀 Executing entry...");
+
+                            match execute_entry(strategy, client).await {
+                                Ok(size) => {
+                                    info!("✅ Entry successful! Position size: {}", size);
+                                    strategy.set_state(ArbitrageState::PositionOpen);
+                                    strategy.record_entry(signal.bps);
+                                    position_size = Some(size);
+                                }
+                                Err(e) => {
+                                    error!("❌ Entry failed: {}", e);
+                                    strategy.set_state(ArbitrageState::Idle);
+                                }
+                            }
+                        }
+
+                        // Check for exit signal
+                        if let Some(_signal) = strategy.should_exit() {
+                            if let Some(size) = position_size {
+                                info!("🎯 Executing exit...");
+
+                                match execute_exit(strategy, client, size).await {
+                                    Ok(_) => {
+                                        info!("✅ Exit successful!");
+
+                                        // Calculate and record PnL
+                                        if let Some(profit_bps) = strategy.estimated_profit_bps() {
+                                            let profit_usd = profit_bps * size;
+                                            risk_manager.record_trade(profit_usd);
+                                        }
+
+                                        strategy.set_state(ArbitrageState::Idle);
+                                        strategy.clear_entry();
+                                        position_size = None;
+                                        exit_order_time = None;
+                                    }
+                                    Err(e) => {
+                                        error!("❌ Exit failed: {}", e);
+                                        exit_order_time = Some(std::time::Instant::now());
+                                    }
+                                }
+                            }
+                        }
+
+                        // Check emergency exit
+                        if strategy.should_emergency_exit() {
+                            if let Some(size) = position_size {
+                                warn!("⚠️ EMERGENCY EXIT!");
+
+                                // Force close with IOC
+                                if let Err(e) = client.cancel_all_orders(&strategy.config.symbols.perp_symbol).await {
+                                    error!("Failed to cancel perp orders: {}", e);
+                                }
+                                if let Err(e) = client.cancel_all_orders(&strategy.config.symbols.spot_symbol).await {
+                                    error!("Failed to cancel spot orders: {}", e);
+                                }
+
+                                // Record loss
+                                if let Some(profit_bps) = strategy.estimated_profit_bps() {
+                                    let profit_usd = profit_bps * size;
+                                    risk_manager.record_trade(profit_usd);
+                                }
+
+                                strategy.set_state(ArbitrageState::Idle);
+                                strategy.clear_entry();
+                                position_size = None;
+                            }
+                        }
+
+                        // Check ALO timeout (30 seconds)
+                        if let Some(order_time) = exit_order_time {
+                            if order_time.elapsed() > Duration::from_secs(30) {
+                                warn!("⏰ ALO timeout, forcing close with IOC");
+
+                                if let Some(size) = position_size {
+                                    // Cancel pending orders
+                                    let _ = client.cancel_all_orders(&strategy.config.symbols.perp_symbol).await;
+                                    let _ = client.cancel_all_orders(&strategy.config.symbols.spot_symbol).await;
+
+                                    // Force close
+                                    // TODO: Implement force close with IOC
+
+                                    strategy.set_state(ArbitrageState::Idle);
+                                    position_size = None;
+                                    exit_order_time = None;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            _ = stats_interval.tick() => {
+                // Log statistics
+                risk_manager.log_statistics();
+
+                if let Some(bps) = strategy.calculate_bps() {
+                    info!("📊 Current BPS: {:.2}", bps);
+                }
+            }
+        }
+    }
+
+    Ok(())
+}
+
+async fn execute_entry(
+    strategy: &ArbitrageStrategy,
+    client: &Arc<HyperliquidClient>,
+) -> anyhow::Result<rust_decimal::Decimal> {
+    let orders = strategy.build_entry_orders()?;
+
+    info!("Placing {} entry orders", orders.len());
+
+    let responses = client.place_batch_orders(orders.clone()).await?;
+
+    // Verify both orders were filled
+    if responses.len() != 2 {
+        return Err(anyhow::anyhow!("Unexpected number of responses"));
+    }
+
+    // Return position size (use perp size as reference)
+    Ok(orders[0].size)
+}
+
+async fn execute_exit(
+    strategy: &ArbitrageStrategy,
+    client: &Arc<HyperliquidClient>,
+    position_size: rust_decimal::Decimal,
+) -> anyhow::Result<()> {
+    let orders = strategy.build_exit_orders(position_size)?;
+
+    info!("Placing {} exit orders (ALO)", orders.len());
+
+    let _responses = client.place_batch_orders(orders).await?;
+
+    Ok(())
+}
+
+
