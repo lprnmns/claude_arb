@@ -14,6 +14,7 @@ pub struct ArbitrageStrategy {
     spot_orderbook: Arc<Orderbook>,
     state: ArbitrageState,
     entry_bps: Option<Decimal>,
+    entry_spot_price: Option<Decimal>, // For P&L calculation
 }
 
 impl ArbitrageStrategy {
@@ -28,6 +29,7 @@ impl ArbitrageStrategy {
             spot_orderbook,
             state: ArbitrageState::Idle,
             entry_bps: None,
+            entry_spot_price: None,
         }
     }
 
@@ -298,15 +300,17 @@ impl ArbitrageStrategy {
         self.state = state;
     }
 
-    /// Record entry BPS for PnL tracking
-    pub fn record_entry(&mut self, bps: Decimal) {
+    /// Record entry BPS and price for PnL tracking
+    pub fn record_entry(&mut self, bps: Decimal, spot_price: Decimal) {
         self.entry_bps = Some(bps);
-        info!("Entry BPS recorded: {}", bps);
+        self.entry_spot_price = Some(spot_price);
+        info!("Entry recorded - BPS: {}, Spot Price: ${}", bps, spot_price);
     }
 
     /// Clear entry data
     pub fn clear_entry(&mut self) {
         self.entry_bps = None;
+        self.entry_spot_price = None;
     }
 
     /// Calculate estimated profit in BPS
@@ -314,6 +318,21 @@ impl ArbitrageStrategy {
         let entry = self.entry_bps?;
         let current = self.calculate_bps()?;
         Some(entry - current) // Profit = entry BPS - current BPS
+    }
+
+    /// Calculate estimated profit in USD
+    /// Formula: (profit_bps / 10000) * position_notional_usd
+    pub fn estimated_profit_usd(&self, position_size: Decimal) -> Option<Decimal> {
+        let profit_bps = self.estimated_profit_bps()?;
+        let entry_price = self.entry_spot_price?;
+
+        // Position notional = position_size (in coins) * entry_price
+        let position_notional_usd = position_size * entry_price;
+
+        // Convert BPS to decimal ratio and multiply by notional
+        let profit_usd = (profit_bps / Decimal::from(10000)) * position_notional_usd;
+
+        Some(profit_usd)
     }
 }
 
@@ -345,6 +364,11 @@ mod tests {
             symbols: crate::config::SymbolConfig {
                 perp_symbol: "HYPE".into(),
                 spot_symbol: "HYPE".into(),
+            },
+            dry_run: crate::config::DryRunConfig {
+                enabled: false,
+                fill_delay_ms: 100,
+                fill_success_rate: 95,
             },
         };
 

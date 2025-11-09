@@ -175,7 +175,7 @@ async fn run_trading_loop(
                                 Ok(size) => {
                                     info!("✅ Entry successful! Position size: {}", size);
                                     strategy.set_state(ArbitrageState::PositionOpen);
-                                    strategy.record_entry(signal.bps);
+                                    strategy.record_entry(signal.bps, signal.spot_price);
                                     position_size = Some(size);
                                 }
                                 Err(e) => {
@@ -194,10 +194,10 @@ async fn run_trading_loop(
                                     Ok(_) => {
                                         info!("✅ Exit successful!");
 
-                                        // Calculate and record PnL
-                                        if let Some(profit_bps) = strategy.estimated_profit_bps() {
-                                            let profit_usd = profit_bps * size;
+                                        // Calculate and record PnL (FIXED FORMULA!)
+                                        if let Some(profit_usd) = strategy.estimated_profit_usd(size) {
                                             risk_manager.record_trade(profit_usd);
+                                            info!("💰 Trade P&L: ${:.4}", profit_usd);
                                         }
 
                                         strategy.set_state(ArbitrageState::Idle);
@@ -226,10 +226,10 @@ async fn run_trading_loop(
                                     error!("Failed to cancel spot orders: {}", e);
                                 }
 
-                                // Record loss
-                                if let Some(profit_bps) = strategy.estimated_profit_bps() {
-                                    let profit_usd = profit_bps * size;
+                                // Record loss (FIXED FORMULA!)
+                                if let Some(profit_usd) = strategy.estimated_profit_usd(size) {
                                     risk_manager.record_trade(profit_usd);
+                                    warn!("💸 Emergency exit P&L: ${:.4}", profit_usd);
                                 }
 
                                 strategy.set_state(ArbitrageState::Idle);
@@ -259,11 +259,10 @@ async fn run_trading_loop(
                                         Ok(_) => {
                                             info!("✅ Force close successful!");
 
-                                            // Calculate PnL (will be slightly less due to slippage)
-                                            if let Some(profit_bps) = strategy.estimated_profit_bps() {
-                                                let profit_usd = profit_bps * size;
+                                            // Calculate PnL (will be slightly less due to slippage) (FIXED FORMULA!)
+                                            if let Some(profit_usd) = strategy.estimated_profit_usd(size) {
                                                 risk_manager.record_trade(profit_usd);
-                                                warn!("⚠️ Exit with IOC slippage: ~${:.2}", profit_usd);
+                                                warn!("⚠️ Exit with IOC slippage: ~${:.4}", profit_usd);
                                             }
                                         }
                                         Err(e) => {
