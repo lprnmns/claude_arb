@@ -168,21 +168,29 @@ impl ArbitrageStrategy {
         let position_size_usd = self.config.strategy.position_size_usd;
         let leverage = Decimal::from(self.config.strategy.leverage);
 
-        // Calculate position sizes
-        let perp_notional = position_size_usd * leverage;
-        let perp_size = perp_notional / perp_ask.price;
+        // CRITICAL: For perfect hedge, coin amounts must be EQUAL
+        // Leverage only affects margin requirement, NOT coin amount
 
-        let spot_notional = position_size_usd; // Spot is 1x
-        let spot_size = spot_notional / spot_bid.price;
+        // Calculate coin amount from spot position (1x leverage)
+        let spot_notional = position_size_usd; // $150
+        let coin_amount = spot_notional / spot_bid.price; // e.g., $150 / $40.8 = 3.68 HYPE
+
+        // Perp uses SAME coin amount for perfect hedge
+        let perp_size = coin_amount; // 3.68 HYPE (SAME as spot!)
+        let spot_size = coin_amount; // 3.68 HYPE
+
+        // Note: Perp margin requirement = (coin_amount * price) / leverage
+        // Example: (3.68 * $40.8) / 2 = $75 margin required
+        // But position size is still 3.68 HYPE (same as spot)
 
         // Use IOC for immediate execution
         let orders = vec![
-            // Short perp
+            // Short perp (SAME coin amount as spot)
             OrderRequest {
                 symbol: self.config.symbols.perp_symbol.clone(),
                 side: Side::Sell,
                 price: perp_ask.price,
-                size: perp_size,
+                size: perp_size, // Now equal to spot_size!
                 order_type: OrderType::Limit,
                 time_in_force: TimeInForce::IOC,
                 reduce_only: false,

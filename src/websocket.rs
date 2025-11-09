@@ -102,8 +102,16 @@ impl WebSocketManager {
     }
 
     async fn handle_message(text: &str, orderbook: &Arc<Orderbook>) -> Result<()> {
-        let msg: WsMessage = serde_json::from_str(text)
-            .map_err(|e| BotError::Parse(format!("Failed to parse WebSocket message: {}", e)))?;
+        // Try to parse the message, but don't fail if format is unexpected
+        let msg: WsMessage = match serde_json::from_str(text) {
+            Ok(m) => m,
+            Err(e) => {
+                // Log parsing errors but continue (Hyperliquid may send various message types)
+                debug!("Failed to parse WebSocket message (non-critical): {} - Message: {}", e,
+                       &text[..text.len().min(200)]); // First 200 chars
+                return Ok(()); // Skip this message, don't fail
+            }
+        };
 
         match msg.channel.as_str() {
             "l2Book" => {
