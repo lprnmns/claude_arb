@@ -13,6 +13,7 @@ pub struct Config {
     pub risk: RiskConfig,
     pub symbols: SymbolConfig,
     pub dry_run: DryRunConfig,
+    pub fees: FeeConfig,
 }
 
 #[derive(Debug, Clone)]
@@ -41,6 +42,16 @@ pub struct DryRunConfig {
     pub enabled: bool,
     pub fill_delay_ms: u64,
     pub fill_success_rate: u8,
+}
+
+#[derive(Debug, Clone)]
+pub struct FeeConfig {
+    // Perp fees in percentage (e.g., 0.045 for 0.045%)
+    pub perp_taker_fee: Decimal,
+    pub perp_maker_fee: Decimal,
+    // Spot fees in percentage
+    pub spot_taker_fee: Decimal,
+    pub spot_maker_fee: Decimal,
 }
 
 impl Config {
@@ -102,6 +113,14 @@ impl Config {
                 .min(100), // Cap at 100%
         };
 
+        // Hyperliquid fee structure (as percentages)
+        let fees = FeeConfig {
+            perp_taker_fee: parse_decimal_env("PERP_TAKER_FEE", "0.045")?,  // 0.045%
+            perp_maker_fee: parse_decimal_env("PERP_MAKER_FEE", "0.015")?,  // 0.015%
+            spot_taker_fee: parse_decimal_env("SPOT_TAKER_FEE", "0.070")?,  // 0.070%
+            spot_maker_fee: parse_decimal_env("SPOT_MAKER_FEE", "0.040")?,  // 0.040%
+        };
+
         Ok(Config {
             api_url,
             ws_url,
@@ -111,6 +130,7 @@ impl Config {
             risk,
             symbols,
             dry_run,
+            fees,
         })
     }
 }

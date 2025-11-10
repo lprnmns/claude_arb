@@ -320,8 +320,8 @@ impl ArbitrageStrategy {
         Some(entry - current) // Profit = entry BPS - current BPS
     }
 
-    /// Calculate estimated profit in USD
-    /// Formula: (profit_bps / 10000) * position_notional_usd
+    /// Calculate estimated profit in USD (including fees)
+    /// Formula: (profit_bps / 10000) * position_notional_usd - total_fees
     pub fn estimated_profit_usd(&self, position_size: Decimal) -> Option<Decimal> {
         let profit_bps = self.estimated_profit_bps()?;
         let entry_price = self.entry_spot_price?;
@@ -330,9 +330,25 @@ impl ArbitrageStrategy {
         let position_notional_usd = position_size * entry_price;
 
         // Convert BPS to decimal ratio and multiply by notional
-        let profit_usd = (profit_bps / Decimal::from(10000)) * position_notional_usd;
+        let gross_profit = (profit_bps / Decimal::from(10000)) * position_notional_usd;
 
-        Some(profit_usd)
+        // Calculate fees (all fees are percentages)
+        let fees = &self.config.fees;
+
+        // Entry fees (IOC = taker)
+        let perp_entry_fee = position_notional_usd * (fees.perp_taker_fee / Decimal::from(100));
+        let spot_entry_fee = position_notional_usd * (fees.spot_taker_fee / Decimal::from(100));
+
+        // Exit fees (ALO = maker)
+        let perp_exit_fee = position_notional_usd * (fees.perp_maker_fee / Decimal::from(100));
+        let spot_exit_fee = position_notional_usd * (fees.spot_maker_fee / Decimal::from(100));
+
+        let total_fees = perp_entry_fee + spot_entry_fee + perp_exit_fee + spot_exit_fee;
+
+        // Net profit = gross profit - fees
+        let net_profit = gross_profit - total_fees;
+
+        Some(net_profit)
     }
 }
 
@@ -369,6 +385,12 @@ mod tests {
                 enabled: false,
                 fill_delay_ms: 100,
                 fill_success_rate: 95,
+            },
+            fees: crate::config::FeeConfig {
+                perp_taker_fee: dec!(0.045),
+                perp_maker_fee: dec!(0.015),
+                spot_taker_fee: dec!(0.070),
+                spot_maker_fee: dec!(0.040),
             },
         };
 
