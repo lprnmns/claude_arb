@@ -311,23 +311,57 @@ impl HyperliquidClient {
     }
 
     async fn sign_action(&self, action: &serde_json::Value) -> Result<serde_json::Value> {
+        use ethers::types::transaction::eip712::*;
+        use std::collections::BTreeMap;
+
         let timestamp = chrono::Utc::now().timestamp_millis() as u64;
 
-        // Construct the signing payload
-        let payload = json!({
-            "action": action,
-            "nonce": timestamp,
-            "vaultAddress": null
-        });
+        // Build action hash with msgpack (Hyperliquid uses msgpack)
+        let action_str = serde_json::to_string(action)
+            .map_err(|e| BotError::Api(format!("Failed to serialize action: {}", e)))?;
 
-        let message = serde_json::to_string(&payload)
-            .map_err(|e| BotError::Api(format!("Failed to serialize payload: {}", e)))?;
+        let action_hash = ethers::utils::keccak256(action_str.as_bytes());
 
-        // Sign with EIP-712 (simplified version for now)
+        // Construct EIP-712 TypedData for Hyperliquid Exchange
+        let domain = EIP712Domain {
+            name: Some("Exchange".to_string()),
+            version: None,
+            chain_id: Some(ethers::types::U256::from(1337)),
+            verifying_contract: None,
+            salt: None,
+        };
+
+        let mut agent_types = BTreeMap::new();
+        agent_types.insert(
+            "Agent".to_string(),
+            vec![
+                Eip712DomainType {
+                    name: "source".to_string(),
+                    r#type: "string".to_string(),
+                },
+                Eip712DomainType {
+                    name: "connectionId".to_string(),
+                    r#type: "bytes32".to_string(),
+                },
+            ],
+        );
+
+        let mut message = BTreeMap::new();
+        message.insert("source".to_string(), serde_json::json!("a"));  // "a" for mainnet
+        message.insert("connectionId".to_string(), serde_json::json!(format!("0x{}", hex::encode(action_hash))));
+
+        let typed_data = TypedData {
+            domain,
+            types: agent_types,
+            primary_type: "Agent".to_string(),
+            message,
+        };
+
+        // Sign with EIP-712
         let signature = self.wallet
-            .sign_message(message.as_bytes())
+            .sign_typed_data(&typed_data)
             .await
-            .map_err(|e| BotError::Api(format!("Failed to sign message: {}", e)))?;
+            .map_err(|e| BotError::Api(format!("Failed to sign typed data: {}", e)))?;
 
         Ok(json!({
             "action": action,
@@ -336,7 +370,8 @@ impl HyperliquidClient {
                 "r": format!("0x{:x}", signature.r),
                 "s": format!("0x{:x}", signature.s),
                 "v": signature.v
-            }
+            },
+            "vaultAddress": null
         }))
     }
 
