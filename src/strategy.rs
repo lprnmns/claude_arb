@@ -366,6 +366,9 @@ mod tests {
             ws_url: "".into(),
             private_key: "0000000000000000000000000000000000000000000000000000000000000001".into(),
             wallet_address: "0x0000000000000000000000000000000000000000".into(),
+            agent_private_key: None,
+            agent_wallet_address: None,
+            master_wallet_address: None,
             strategy: crate::config::StrategyConfig {
                 bps_threshold: dec!(20),
                 position_size_usd: dec!(150),

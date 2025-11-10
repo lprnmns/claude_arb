@@ -20,19 +20,38 @@ use std::time::Duration;
 use tokio::signal;
 use tokio::time::{interval, sleep};
 use tracing::{error, info, warn};
-use tracing_subscriber;
+use tracing_subscriber::{self, layer::SubscriberExt, util::SubscriberInitExt};
 
 #[tokio::main]
 async fn main() {
-    // Initialize logging
-    tracing_subscriber::fmt()
-        .with_env_filter(
+    // Create logs directory if it doesn't exist
+    std::fs::create_dir_all("logs").expect("Failed to create logs directory");
+
+    // File appender - creates daily rotating logs
+    let file_appender = tracing_appender::rolling::daily("logs", "trade");
+    let (non_blocking, _guard) = tracing_appender::non_blocking(file_appender);
+
+    // Initialize logging with both console and file output
+    tracing_subscriber::registry()
+        .with(
             tracing_subscriber::EnvFilter::from_default_env()
                 .add_directive(tracing::Level::INFO.into()),
+        )
+        .with(
+            tracing_subscriber::fmt::layer()
+                .with_writer(std::io::stdout)
+                .with_ansi(true),
+        )
+        .with(
+            tracing_subscriber::fmt::layer()
+                .with_writer(non_blocking)
+                .with_ansi(false)
+                .with_target(false),
         )
         .init();
 
     info!("🚀 Hyperliquid Arbitrage Bot starting...");
+    info!("📝 Logs are being written to: logs/trade.YYYY-MM-DD");
 
     // Load configuration
     let config = match Config::from_env() {

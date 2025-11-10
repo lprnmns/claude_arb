@@ -9,6 +9,9 @@ pub struct Config {
     pub ws_url: String,
     pub private_key: String,
     pub wallet_address: String,
+    pub agent_private_key: Option<String>,
+    pub agent_wallet_address: Option<String>,
+    pub master_wallet_address: Option<String>,
     pub strategy: StrategyConfig,
     pub risk: RiskConfig,
     pub symbols: SymbolConfig,
@@ -70,6 +73,11 @@ impl Config {
         // Derive wallet address from private key (we'll implement this with ethers)
         let wallet_address = derive_address_from_private_key(&private_key)?;
 
+        // Optional agent wallet configuration (for Hyperliquid agent trading)
+        let agent_private_key = env::var("HL_API_AGENT_PRIVATE_KEY").ok();
+        let agent_wallet_address = env::var("HL_API_AGENT_WALLET_ADDRESS").ok();
+        let master_wallet_address = env::var("HL_MASTER_WALLET_ADDRESS").ok();
+
         let strategy = StrategyConfig {
             bps_threshold: parse_decimal_env("BPS_THRESHOLD", "20.0")?,
             position_size_usd: parse_decimal_env("POSITION_SIZE_USD", "150.0")?,
@@ -126,6 +134,9 @@ impl Config {
             ws_url,
             private_key,
             wallet_address,
+            agent_private_key,
+            agent_wallet_address,
+            master_wallet_address,
             strategy,
             risk,
             symbols,
