@@ -134,6 +134,28 @@ async fn main() {
     let risk_manager = RiskManager::new(config.risk.clone());
 
     info!("✅ All components initialized");
+
+    // Check if manual test trade is enabled
+    if config.test.manual_test_trade {
+        warn!("🧪 MANUAL TEST TRADE MODE ENABLED!");
+        warn!("   This will execute ONE real trade immediately");
+        warn!("   Entry: 20 USDC spot buy + 20 USDC perp short (10x leverage)");
+        warn!("   Exit: Immediate ALO close (no spread wait)");
+        warn!("   Expected loss: ~$0.34 (17 BPS fees)");
+
+        info!("⏳ Executing test trade in 5 seconds...");
+        sleep(Duration::from_secs(5)).await;
+
+        if let Err(e) = execute_manual_test_trade(&mut strategy, &risk_manager, &client).await {
+            error!("❌ Manual test trade failed: {}", e);
+            std::process::exit(1);
+        }
+
+        info!("✅ Manual test trade completed! Check logs for details.");
+        info!("👋 Bot stopping (manual test mode)");
+        return;
+    }
+
     info!("🎯 Starting trading loop...");
     info!("   Press Ctrl+C to stop");
 
@@ -448,6 +470,110 @@ async fn execute_force_close(
             return Err(anyhow::anyhow!("Force close: unexpected number of responses"));
         }
     }
+
+    Ok(())
+}
+
+async fn execute_manual_test_trade(
+    strategy: &mut ArbitrageStrategy,
+    risk_manager: &RiskManager,
+    client: &Arc<HyperliquidClient>,
+) -> anyhow::Result<()> {
+    info!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    info!("🧪 MANUAL TEST TRADE - START");
+    info!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+
+    // Get current market prices
+    let perp_ask = strategy.perp_orderbook.best_ask()
+        .ok_or_else(|| anyhow::anyhow!("No perp ask available"))?;
+    let spot_bid = strategy.spot_orderbook.best_bid()
+        .ok_or_else(|| anyhow::anyhow!("No spot bid available"))?;
+
+    let entry_bps = strategy.calculate_bps()
+        .ok_or_else(|| anyhow::anyhow!("Cannot calculate BPS"))?;
+
+    info!("📊 Market Snapshot:");
+    info!("   Perp Ask: ${}", perp_ask.price);
+    info!("   Spot Bid: ${}", spot_bid.price);
+    info!("   Entry BPS: {:.2}", entry_bps);
+    info!("   Position: ${} (spot) + ${} (perp)",
+          strategy.config.strategy.position_size_usd,
+          strategy.config.strategy.position_size_usd);
+
+    // STEP 1: Execute Entry (IOC)
+    info!("");
+    info!("📥 STEP 1: Executing ENTRY (IOC - Taker)");
+    info!("   Spot: BUY {} USDC worth", strategy.config.strategy.position_size_usd);
+    info!("   Perp: SHORT {} USDC notional ({}x leverage)",
+          strategy.config.strategy.position_size_usd,
+          strategy.config.strategy.leverage);
+
+    let position_size = match execute_entry(strategy, client).await {
+        Ok(size) => {
+            info!("✅ Entry FILLED! Position size: {}", size);
+            size
+        }
+        Err(e) => {
+            error!("❌ Entry FAILED: {}", e);
+            return Err(e);
+        }
+    };
+
+    // Record entry for P&L tracking
+    strategy.set_state(ArbitrageState::PositionOpen);
+    strategy.record_entry(entry_bps, spot_bid.price);
+
+    info!("");
+    info!("⏳ Waiting 2 seconds before exit...");
+    tokio::time::sleep(Duration::from_secs(2)).await;
+
+    // STEP 2: Execute Exit (ALO - immediate)
+    info!("");
+    info!("📤 STEP 2: Executing EXIT (ALO - Maker)");
+    info!("   Closing position immediately (no spread wait)");
+
+    match execute_exit(strategy, client, position_size).await {
+        Ok(_) => {
+            info!("✅ Exit ALO orders PLACED!");
+        }
+        Err(e) => {
+            error!("❌ Exit FAILED: {}", e);
+            return Err(e);
+        }
+    }
+
+    info!("");
+    info!("⏳ Waiting 5 seconds for ALO fills...");
+    tokio::time::sleep(Duration::from_secs(5)).await;
+
+    // STEP 3: Calculate P&L
+    let current_bps = strategy.calculate_bps()
+        .unwrap_or(rust_decimal::Decimal::ZERO);
+
+    info!("");
+    info!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    info!("💰 P&L CALCULATION");
+    info!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    info!("   Entry BPS:    {:.4}", entry_bps);
+    info!("   Exit BPS:     {:.4}", current_bps);
+    info!("   Profit BPS:   {:.4}", entry_bps - current_bps);
+    info!("");
+
+    if let Some(profit_usd) = strategy.estimated_profit_usd(position_size) {
+        info!("   💵 NET P&L (after fees): ${:.4}", profit_usd);
+        risk_manager.record_trade(profit_usd);
+
+        if profit_usd < rust_decimal::Decimal::ZERO {
+            warn!("   ⚠️ Loss as expected (fees > spread)");
+        }
+    }
+
+    info!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    info!("🧪 MANUAL TEST TRADE - COMPLETE");
+    info!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+
+    strategy.set_state(ArbitrageState::Idle);
+    strategy.clear_entry();
 
     Ok(())
 }

@@ -10,8 +10,8 @@ use tracing::{debug, info};
 /// Arbitrage strategy for perp-spot spread trading
 pub struct ArbitrageStrategy {
     pub config: Config,
-    perp_orderbook: Arc<Orderbook>,
-    spot_orderbook: Arc<Orderbook>,
+    pub perp_orderbook: Arc<Orderbook>,
+    pub spot_orderbook: Arc<Orderbook>,
     state: ArbitrageState,
     entry_bps: Option<Decimal>,
     entry_spot_price: Option<Decimal>, // For P&L calculation
@@ -388,6 +388,9 @@ mod tests {
                 enabled: false,
                 fill_delay_ms: 100,
                 fill_success_rate: 95,
+            },
+            test: crate::config::TestConfig {
+                manual_test_trade: false,
             },
             fees: crate::config::FeeConfig {
                 perp_taker_fee: dec!(0.045),

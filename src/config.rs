@@ -16,6 +16,7 @@ pub struct Config {
     pub risk: RiskConfig,
     pub symbols: SymbolConfig,
     pub dry_run: DryRunConfig,
+    pub test: TestConfig,
     pub fees: FeeConfig,
 }
 
@@ -45,6 +46,11 @@ pub struct DryRunConfig {
     pub enabled: bool,
     pub fill_delay_ms: u64,
     pub fill_success_rate: u8,
+}
+
+#[derive(Debug, Clone)]
+pub struct TestConfig {
+    pub manual_test_trade: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -121,6 +127,14 @@ impl Config {
                 .min(100), // Cap at 100%
         };
 
+        // Test configuration
+        let test = TestConfig {
+            manual_test_trade: env::var("MANUAL_TEST_TRADE")
+                .unwrap_or_else(|_| "false".to_string())
+                .parse()
+                .unwrap_or(false),
+        };
+
         // Hyperliquid fee structure (as percentages)
         let fees = FeeConfig {
             perp_taker_fee: parse_decimal_env("PERP_TAKER_FEE", "0.045")?,  // 0.045%
@@ -141,6 +155,7 @@ impl Config {
             risk,
             symbols,
             dry_run,
+            test,
             fees,
         })
     }
