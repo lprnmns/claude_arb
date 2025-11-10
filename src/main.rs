@@ -378,12 +378,8 @@ async fn execute_entry(
         info!("✅ DRY RUN: Entry execution simulated successfully");
     } else {
         // LIVE: Real order execution
-        let responses = client.place_batch_orders(orders.clone()).await?;
-
-        // Verify both orders were filled
-        if responses.len() != 2 {
-            return Err(anyhow::anyhow!("Unexpected number of responses"));
-        }
+        let _responses = client.place_batch_orders(orders.clone()).await?;
+        // Hyperliquid returns single response for batch orders
     }
 
     // Return position size (use perp size as reference)
@@ -463,12 +459,8 @@ async fn execute_force_close(
         info!("✅ DRY RUN: Force close successful (simulated)");
     } else {
         // LIVE: Real IOC force close
-        let responses = client.place_batch_orders(orders).await?;
-
-        // Verify both orders were filled
-        if responses.len() != 2 {
-            return Err(anyhow::anyhow!("Force close: unexpected number of responses"));
-        }
+        let _responses = client.place_batch_orders(orders).await?;
+        // Hyperliquid returns single response for batch orders
     }
 
     Ok(())

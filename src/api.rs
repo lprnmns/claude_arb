@@ -141,17 +141,43 @@ impl HyperliquidClient {
     ) -> Result<Vec<PlaceOrderResponse>> {
         info!("Placing {} orders in batch", orders.len());
 
-        let actions: Vec<_> = orders
-            .iter()
-            .map(|order| self.build_order_action(order))
-            .collect::<Result<Vec<_>>>()?;
+        // Build all orders into a single action
+        let mut order_objects = Vec::new();
+        for order in &orders {
+            let asset_index = self.get_asset_index(&order.symbol)?;
+            let is_buy = order.side == Side::Buy;
+            let price = order.price.to_string();
+            let size = order.size.to_string();
 
-        let signed_actions = self.sign_batch_actions(&actions).await?;
+            let order_type = match order.time_in_force {
+                TimeInForce::IOC => json!({"limit": {"tif": "Ioc"}}),
+                TimeInForce::ALO => json!({"limit": {"tif": "Alo"}}),
+                TimeInForce::GTC => json!({"limit": {"tif": "Gtc"}}),
+            };
+
+            order_objects.push(json!({
+                "a": asset_index,
+                "b": is_buy,
+                "p": price,
+                "s": size,
+                "r": order.reduce_only,
+                "t": order_type
+            }));
+        }
+
+        // Single action with multiple orders
+        let action = json!({
+            "type": "order",
+            "orders": order_objects,
+            "grouping": "na"
+        });
+
+        let signed_action = self.sign_action(&action).await?;
 
         let response = self
             .client
             .post(format!("{}/exchange", self.api_url))
-            .json(&signed_actions)
+            .json(&signed_action)
             .send()
             .await
             .map_err(|e| BotError::OrderExecution(format!("Failed to place batch orders: {}", e)))?;
@@ -166,13 +192,14 @@ impl HyperliquidClient {
             )));
         }
 
-        let results: Vec<PlaceOrderResponse> = response
+        let result: PlaceOrderResponse = response
             .json()
             .await
             .map_err(|e| BotError::Parse(format!("Failed to parse batch response: {}", e)))?;
 
-        debug!("Batch order response: {:?}", results);
-        Ok(results)
+        debug!("Batch order response: {:?}", result);
+        // Return response in a vector (Hyperliquid returns single response for batch)
+        Ok(vec![result])
     }
 
     /// Cancel all orders for a symbol
@@ -245,10 +272,23 @@ impl HyperliquidClient {
 
     // Private helper methods
 
+    fn get_asset_index(&self, symbol: &str) -> Result<u32> {
+        // Hyperliquid asset index mapping
+        // TODO: Fetch dynamically from /info endpoint
+        match symbol {
+            "HYPE" => Ok(107),
+            "BTC" => Ok(0),
+            "ETH" => Ok(1),
+            "SOL" => Ok(2),
+            _ => Err(BotError::Api(format!("Unknown symbol: {}", symbol)))
+        }
+    }
+
     fn build_order_action(&self, order: &OrderRequest) -> Result<serde_json::Value> {
+        let asset_index = self.get_asset_index(&order.symbol)?;
         let is_buy = order.side == Side::Buy;
-        let limit_px = order.price.to_string();
-        let sz = order.size.to_string();
+        let price = order.price.to_string();
+        let size = order.size.to_string();
 
         let order_type = match order.time_in_force {
             TimeInForce::IOC => json!({"limit": {"tif": "Ioc"}}),
@@ -259,12 +299,12 @@ impl HyperliquidClient {
         Ok(json!({
             "type": "order",
             "orders": [{
-                "coin": order.symbol,
-                "is_buy": is_buy,
-                "sz": sz,
-                "limit_px": limit_px,
-                "order_type": order_type,
-                "reduce_only": order.reduce_only
+                "a": asset_index,
+                "b": is_buy,
+                "p": price,
+                "s": size,
+                "r": order.reduce_only,
+                "t": order_type
             }],
             "grouping": "na"
         }))
