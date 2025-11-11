@@ -1,8 +1,8 @@
+use chrono::{DateTime, Utc};
+use parking_lot::RwLock;
 use rust_decimal::Decimal;
 use std::collections::BTreeMap;
 use std::sync::Arc;
-use parking_lot::RwLock;
-use chrono::{DateTime, Utc};
 
 /// Price level in the orderbook
 pub type Price = Decimal;
@@ -92,20 +92,23 @@ impl Orderbook {
         Some(((ask.price - bid.price) / bid.price) * Decimal::from(10000))
     }
 
+    /// Returns true if the latest update is within the provided age window.
+    pub fn is_fresh(&self, max_age_ms: i64) -> bool {
+        let last = *self.last_update.read();
+        let age = (Utc::now() - last).num_milliseconds();
+        age <= max_age_ms
+    }
+
     /// Check available liquidity at a specific price level
     pub fn get_liquidity(&self, side: OrderSide, target_price: Price) -> Decimal {
         match side {
             OrderSide::Bid => {
                 let bids = self.bids.read();
-                bids.range(..=target_price)
-                    .map(|(_, size)| size)
-                    .sum()
+                bids.range(..=target_price).map(|(_, size)| size).sum()
             }
             OrderSide::Ask => {
                 let asks = self.asks.read();
-                asks.range(target_price..)
-                    .map(|(_, size)| size)
-                    .sum()
+                asks.range(target_price..).map(|(_, size)| size).sum()
             }
         }
     }

@@ -24,6 +24,7 @@ pub struct StrategyConfig {
     pub position_size_usd: Decimal,
     pub leverage: u32,
     pub timeout_seconds: u64,
+    pub max_orderbook_age_ms: i64,
 }
 
 #[derive(Debug, Clone)]
@@ -92,6 +93,10 @@ impl Config {
                 .unwrap_or_else(|_| "30".to_string())
                 .parse()
                 .context("Invalid TIMEOUT_SECONDS")?,
+            max_orderbook_age_ms: env::var("MAX_ORDERBOOK_AGE_MS")
+                .unwrap_or_else(|_| "1500".to_string())
+                .parse()
+                .context("Invalid MAX_ORDERBOOK_AGE_MS")?,
         };
 
         let risk = RiskConfig {
@@ -134,10 +139,10 @@ impl Config {
 
         // Hyperliquid fee structure (as percentages)
         let fees = FeeConfig {
-            perp_taker_fee: parse_decimal_env("PERP_TAKER_FEE", "0.045")?,  // 0.045%
-            perp_maker_fee: parse_decimal_env("PERP_MAKER_FEE", "0.015")?,  // 0.015%
-            spot_taker_fee: parse_decimal_env("SPOT_TAKER_FEE", "0.070")?,  // 0.070%
-            spot_maker_fee: parse_decimal_env("SPOT_MAKER_FEE", "0.040")?,  // 0.040%
+            perp_taker_fee: parse_decimal_env("PERP_TAKER_FEE", "0.045")?, // 0.045%
+            perp_maker_fee: parse_decimal_env("PERP_MAKER_FEE", "0.015")?, // 0.015%
+            spot_taker_fee: parse_decimal_env("SPOT_TAKER_FEE", "0.070")?, // 0.070%
+            spot_maker_fee: parse_decimal_env("SPOT_MAKER_FEE", "0.040")?, // 0.040%
         };
 
         Ok(Config {
@@ -167,9 +172,7 @@ fn derive_address_from_private_key(private_key: &str) -> Result<String> {
     use ethers::signers::{LocalWallet, Signer};
 
     let private_key = private_key.trim_start_matches("0x");
-    let wallet: LocalWallet = private_key
-        .parse()
-        .context("Invalid private key format")?;
+    let wallet: LocalWallet = private_key.parse().context("Invalid private key format")?;
 
     Ok(format!("{:?}", wallet.address()))
 }

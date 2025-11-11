@@ -106,6 +106,7 @@ BPS_THRESHOLD=20.0          # Enter when spread > 20 bps
 POSITION_SIZE_USD=150.0     # Position size in USD
 LEVERAGE=2                  # 2x or 3x recommended
 TIMEOUT_SECONDS=30          # ALO timeout before force close
+MAX_ORDERBOOK_AGE_MS=1500   # Ignore spreads if either book is older than 1.5s
 
 # Risk Management
 MAX_LOSS_BPS=50.0           # Emergency exit if loss > 50 bps

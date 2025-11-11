@@ -83,21 +83,28 @@ async fn main() {
     // Initialize components
     info!("🔧 Initializing components...");
 
-    let client = match HyperliquidClient::new(config.api_url.clone(), config.agent_private_key.clone()) {
-        Ok(c) => {
-            info!("✅ API client initialized (Agent Mode)");
-            info!("   Trading wallet: {}", c.address());
-            Arc::new(c)
-        }
-        Err(e) => {
-            error!("❌ Failed to initialize API client: {}", e);
-            std::process::exit(1);
-        }
-    };
+    let client =
+        match HyperliquidClient::new(config.api_url.clone(), config.agent_private_key.clone()) {
+            Ok(c) => {
+                info!("✅ API client initialized (Agent Mode)");
+                info!("   Trading wallet: {}", c.address());
+                Arc::new(c)
+            }
+            Err(e) => {
+                error!("❌ Failed to initialize API client: {}", e);
+                std::process::exit(1);
+            }
+        };
 
     // Create orderbooks
-    let perp_orderbook = Arc::new(Orderbook::new(format!("{}-PERP", config.symbols.perp_symbol)));
-    let spot_orderbook = Arc::new(Orderbook::new(format!("{}-SPOT", config.symbols.spot_symbol)));
+    let perp_orderbook = Arc::new(Orderbook::new(format!(
+        "{}-PERP",
+        config.symbols.perp_symbol
+    )));
+    let spot_orderbook = Arc::new(Orderbook::new(format!(
+        "{}-SPOT",
+        config.symbols.spot_symbol
+    )));
 
     // Initialize WebSocket manager
     let ws_manager = WebSocketManager::new(config.ws_url.clone());
@@ -197,8 +204,10 @@ async fn run_trading_loop(
             }
 
             _ = check_interval.tick() => {
+                let current_bps = strategy.calculate_bps();
+
                 // Display current BPS
-                if let Some(bps) = strategy.calculate_bps() {
+                if let Some(_bps) = current_bps {
                     let perp_ask = perp_orderbook.best_ask();
                     let spot_bid = spot_orderbook.best_bid();
 
@@ -330,8 +339,9 @@ async fn run_trading_loop(
                 // Log statistics
                 risk_manager.log_statistics();
 
-                if let Some(bps) = strategy.calculate_bps() {
-                    info!("📊 Current BPS: {:.2}", bps);
+                match strategy.calculate_bps() {
+                    Some(bps) => info!("📊 Current BPS: {:.2}", bps),
+                    None => info!("📊 Current BPS: N/A (stale orderbook data)"),
                 }
             }
         }
@@ -360,20 +370,24 @@ async fn execute_entry(
         let success = rand::random::<u8>() < config.dry_run.fill_success_rate;
 
         if !success {
-            warn!("📝 DRY RUN: Simulated REJECTION ({}% fill rate)",
-                  config.dry_run.fill_success_rate);
+            warn!(
+                "📝 DRY RUN: Simulated REJECTION ({}% fill rate)",
+                config.dry_run.fill_success_rate
+            );
             return Err(anyhow::anyhow!("Simulated order rejection"));
         }
 
         for (i, order) in orders.iter().enumerate() {
-            info!("📝 DRY RUN: Order {} FILLED - {} {} @ ${}",
-                  i+1,
-                  match order.side {
-                      Side::Buy => "BUY",
-                      Side::Sell => "SELL",
-                  },
-                  order.size,
-                  order.price);
+            info!(
+                "📝 DRY RUN: Order {} FILLED - {} {} @ ${}",
+                i + 1,
+                match order.side {
+                    Side::Buy => "BUY",
+                    Side::Sell => "SELL",
+                },
+                order.size,
+                order.price
+            );
         }
 
         info!("✅ DRY RUN: Entry execution simulated successfully");
@@ -405,14 +419,16 @@ async fn execute_exit(
         tokio::time::sleep(Duration::from_millis(config.dry_run.fill_delay_ms)).await;
 
         for (i, order) in orders.iter().enumerate() {
-            info!("📝 DRY RUN: ALO Order {} PLACED - {} {} @ ${}",
-                  i+1,
-                  match order.side {
-                      Side::Buy => "BUY",
-                      Side::Sell => "SELL",
-                  },
-                  order.size,
-                  order.price);
+            info!(
+                "📝 DRY RUN: ALO Order {} PLACED - {} {} @ ${}",
+                i + 1,
+                match order.side {
+                    Side::Buy => "BUY",
+                    Side::Sell => "SELL",
+                },
+                order.size,
+                order.price
+            );
         }
 
         // Simulate random fill time (2-10 seconds for ALO)
@@ -437,7 +453,10 @@ async fn execute_force_close(
     let orders = strategy.build_exit_orders_ioc(position_size)?;
     let config = &strategy.config;
 
-    info!("Placing {} force close orders (IOC with 0.1% slippage)", orders.len());
+    info!(
+        "Placing {} force close orders (IOC with 0.1% slippage)",
+        orders.len()
+    );
 
     if config.dry_run.enabled {
         // DRY RUN: Simulate IOC force close
@@ -447,14 +466,16 @@ async fn execute_force_close(
         tokio::time::sleep(Duration::from_millis(config.dry_run.fill_delay_ms)).await;
 
         for (i, order) in orders.iter().enumerate() {
-            info!("📝 DRY RUN: IOC Order {} FILLED - {} {} @ ${} (with slippage)",
-                  i+1,
-                  match order.side {
-                      Side::Buy => "BUY",
-                      Side::Sell => "SELL",
-                  },
-                  order.size,
-                  order.price);
+            info!(
+                "📝 DRY RUN: IOC Order {} FILLED - {} {} @ ${} (with slippage)",
+                i + 1,
+                match order.side {
+                    Side::Buy => "BUY",
+                    Side::Sell => "SELL",
+                },
+                order.size,
+                order.price
+            );
         }
 
         info!("✅ DRY RUN: Force close successful (simulated)");
@@ -477,29 +498,39 @@ async fn execute_manual_test_trade(
     info!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
     // Get current market prices
-    let perp_ask = strategy.perp_orderbook.best_ask()
+    let perp_ask = strategy
+        .perp_orderbook
+        .best_ask()
         .ok_or_else(|| anyhow::anyhow!("No perp ask available"))?;
-    let spot_bid = strategy.spot_orderbook.best_bid()
+    let spot_bid = strategy
+        .spot_orderbook
+        .best_bid()
         .ok_or_else(|| anyhow::anyhow!("No spot bid available"))?;
 
-    let entry_bps = strategy.calculate_bps()
+    let entry_bps = strategy
+        .calculate_bps()
         .ok_or_else(|| anyhow::anyhow!("Cannot calculate BPS"))?;
 
     info!("📊 Market Snapshot:");
     info!("   Perp Ask: ${}", perp_ask.price);
     info!("   Spot Bid: ${}", spot_bid.price);
     info!("   Entry BPS: {:.2}", entry_bps);
-    info!("   Position: ${} (spot) + ${} (perp)",
-          strategy.config.strategy.position_size_usd,
-          strategy.config.strategy.position_size_usd);
+    info!(
+        "   Position: ${} (spot) + ${} (perp)",
+        strategy.config.strategy.position_size_usd, strategy.config.strategy.position_size_usd
+    );
 
     // STEP 1: Execute Entry (IOC)
     info!("");
     info!("📥 STEP 1: Executing ENTRY (IOC - Taker)");
-    info!("   Spot: BUY {} USDC worth", strategy.config.strategy.position_size_usd);
-    info!("   Perp: SHORT {} USDC notional ({}x leverage)",
-          strategy.config.strategy.position_size_usd,
-          strategy.config.strategy.leverage);
+    info!(
+        "   Spot: BUY {} USDC worth",
+        strategy.config.strategy.position_size_usd
+    );
+    info!(
+        "   Perp: SHORT {} USDC notional ({}x leverage)",
+        strategy.config.strategy.position_size_usd, strategy.config.strategy.leverage
+    );
 
     let position_size = match execute_entry(strategy, client).await {
         Ok(size) => {
@@ -540,7 +571,8 @@ async fn execute_manual_test_trade(
     tokio::time::sleep(Duration::from_secs(5)).await;
 
     // STEP 3: Calculate P&L
-    let current_bps = strategy.calculate_bps()
+    let current_bps = strategy
+        .calculate_bps()
         .unwrap_or(rust_decimal::Decimal::ZERO);
 
     info!("");
@@ -570,5 +602,3 @@ async fn execute_manual_test_trade(
 
     Ok(())
 }
-
-

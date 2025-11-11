@@ -37,11 +37,21 @@ impl ArbitrageStrategy {
     /// BPS = ((perp_price - spot_price) / spot_price) * 10000
     /// Positive BPS means perp is trading at premium
     pub fn calculate_bps(&self) -> Option<Decimal> {
+        if !self
+            .perp_orderbook
+            .is_fresh(self.config.strategy.max_orderbook_age_ms)
+            || !self
+                .spot_orderbook
+                .is_fresh(self.config.strategy.max_orderbook_age_ms)
+        {
+            debug!("Orderbook data is stale; skipping BPS calculation");
+            return None;
+        }
+
         let perp_ask = self.perp_orderbook.best_ask()?;
         let spot_bid = self.spot_orderbook.best_bid()?;
 
-        let bps = ((perp_ask.price - spot_bid.price) / spot_bid.price)
-            * Decimal::from(10000);
+        let bps = ((perp_ask.price - spot_bid.price) / spot_bid.price) * Decimal::from(10000);
 
         Some(bps)
     }
@@ -265,8 +275,10 @@ impl ArbitrageStrategy {
 
         // IOC for immediate execution (force close)
         // Use slightly worse prices to ensure fill
-        let perp_price = perp_bid.price * (Decimal::ONE + Decimal::from_str_exact("0.001").unwrap()); // +0.1% slippage
-        let spot_price = spot_ask.price * (Decimal::ONE - Decimal::from_str_exact("0.001").unwrap()); // -0.1% slippage
+        let perp_price =
+            perp_bid.price * (Decimal::ONE + Decimal::from_str_exact("0.001").unwrap()); // +0.1% slippage
+        let spot_price =
+            spot_ask.price * (Decimal::ONE - Decimal::from_str_exact("0.001").unwrap()); // -0.1% slippage
 
         let orders = vec![
             // Close short perp (buy back)
@@ -355,8 +367,8 @@ impl ArbitrageStrategy {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rust_decimal_macros::dec;
     use crate::orderbook::OrderSide;
+    use rust_decimal_macros::dec;
 
     #[test]
     fn test_bps_calculation() {
@@ -374,6 +386,7 @@ mod tests {
                 position_size_usd: dec!(150),
                 leverage: 2,
                 timeout_seconds: 30,
+                max_orderbook_age_ms: 1500,
             },
             risk: crate::config::RiskConfig {
                 max_loss_bps: dec!(50),

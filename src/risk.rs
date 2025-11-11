@@ -1,9 +1,9 @@
 use crate::config::RiskConfig;
 use crate::errors::{BotError, Result};
+use chrono::{DateTime, Datelike, Utc};
+use parking_lot::RwLock;
 use rust_decimal::Decimal;
 use std::sync::Arc;
-use parking_lot::RwLock;
-use chrono::{DateTime, Utc, Datelike};
 use tracing::{info, warn};
 
 /// Risk manager to enforce position limits and loss limits
@@ -73,11 +73,18 @@ impl RiskManager {
         if pnl > Decimal::ZERO {
             state.winning_trades += 1;
             state.total_profit += pnl;
-            info!("✅ Winning trade: +${:.2} (Daily PnL: ${:.2})", pnl, state.daily_pnl);
+            info!(
+                "✅ Winning trade: +${:.2} (Daily PnL: ${:.2})",
+                pnl, state.daily_pnl
+            );
         } else {
             state.losing_trades += 1;
             state.total_loss += pnl.abs();
-            warn!("❌ Losing trade: -${:.2} (Daily PnL: ${:.2})", pnl.abs(), state.daily_pnl);
+            warn!(
+                "❌ Losing trade: -${:.2} (Daily PnL: ${:.2})",
+                pnl.abs(),
+                state.daily_pnl
+            );
         }
 
         // Log statistics every 10 trades
@@ -146,7 +153,12 @@ impl RiskManager {
     }
 
     /// Check if position loss exceeds maximum allowed
-    pub fn check_position_loss(&self, entry_price: Decimal, current_price: Decimal, is_long: bool) -> bool {
+    pub fn check_position_loss(
+        &self,
+        entry_price: Decimal,
+        current_price: Decimal,
+        is_long: bool,
+    ) -> bool {
         let loss_pct = if is_long {
             ((current_price - entry_price) / entry_price) * Decimal::from(100)
         } else {
@@ -157,8 +169,10 @@ impl RiskManager {
         let max_loss_pct = self.config.max_loss_bps / Decimal::from(100);
 
         if loss_pct < -max_loss_pct {
-            warn!("⚠️ Position loss exceeds limit: {:.2}% (max: {:.2}%)",
-                  loss_pct, max_loss_pct);
+            warn!(
+                "⚠️ Position loss exceeds limit: {:.2}% (max: {:.2}%)",
+                loss_pct, max_loss_pct
+            );
             return true;
         }
 

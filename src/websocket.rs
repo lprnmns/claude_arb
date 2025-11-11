@@ -1,5 +1,5 @@
 use crate::errors::{BotError, Result};
-use crate::orderbook::{Orderbook, OrderSide};
+use crate::orderbook::{OrderSide, Orderbook};
 use futures_util::{SinkExt, StreamExt};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
@@ -107,8 +107,11 @@ impl WebSocketManager {
             Ok(m) => m,
             Err(e) => {
                 // Log parsing errors but continue (Hyperliquid may send various message types)
-                debug!("Failed to parse WebSocket message (non-critical): {} - Message: {}", e,
-                       &text[..text.len().min(200)]); // First 200 chars
+                debug!(
+                    "Failed to parse WebSocket message (non-critical): {} - Message: {}",
+                    e,
+                    &text[..text.len().min(200)]
+                ); // First 200 chars
                 return Ok(()); // Skip this message, don't fail
             }
         };
@@ -133,9 +136,13 @@ impl WebSocketManager {
     async fn update_orderbook(orderbook: &Arc<Orderbook>, data: L2BookData) -> Result<()> {
         // Update bids
         for level in data.levels.get(0).unwrap_or(&vec![]) {
-            let price = level.px.parse::<Decimal>()
+            let price = level
+                .px
+                .parse::<Decimal>()
                 .map_err(|e| BotError::Parse(format!("Invalid price: {}", e)))?;
-            let size = level.sz.parse::<Decimal>()
+            let size = level
+                .sz
+                .parse::<Decimal>()
                 .map_err(|e| BotError::Parse(format!("Invalid size: {}", e)))?;
 
             orderbook.update_level(OrderSide::Bid, price, size);
@@ -143,9 +150,13 @@ impl WebSocketManager {
 
         // Update asks
         for level in data.levels.get(1).unwrap_or(&vec![]) {
-            let price = level.px.parse::<Decimal>()
+            let price = level
+                .px
+                .parse::<Decimal>()
                 .map_err(|e| BotError::Parse(format!("Invalid price: {}", e)))?;
-            let size = level.sz.parse::<Decimal>()
+            let size = level
+                .sz
+                .parse::<Decimal>()
                 .map_err(|e| BotError::Parse(format!("Invalid size: {}", e)))?;
 
             orderbook.update_level(OrderSide::Ask, price, size);
