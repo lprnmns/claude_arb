@@ -53,6 +53,11 @@ impl ArbitrageStrategy {
 
         let bps = ((perp_ask.price - spot_bid.price) / spot_bid.price) * Decimal::from(10000);
 
+        debug!(
+            "BPS Calculation - Perp Ask: ${}, Spot Bid: ${}, BPS: {:.2}",
+            perp_ask.price, spot_bid.price, bps
+        );
+
         Some(bps)
     }
 

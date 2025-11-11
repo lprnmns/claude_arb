@@ -49,7 +49,7 @@ impl WebSocketManager {
         symbol: &str,
         orderbook: Arc<Orderbook>,
     ) -> Result<()> {
-        info!("Connecting to WebSocket for {}", symbol);
+        info!("Connecting to WebSocket for orderbook: {}", orderbook.symbol);
 
         let (ws_stream, _) = connect_async(url)
             .await
@@ -66,12 +66,20 @@ impl WebSocketManager {
             }
         });
 
+        info!(
+            "📡 Subscribing to Hyperliquid L2Book - Orderbook: {}, Coin Symbol: {}",
+            orderbook.symbol, symbol
+        );
+
         write
             .send(Message::Text(subscribe_msg.to_string().into()))
             .await
             .map_err(|e| BotError::WebSocket(format!("Subscribe failed: {}", e)))?;
 
-        info!("✅ WebSocket connected and subscribed to {}", symbol);
+        info!(
+            "✅ WebSocket connected - Orderbook: {}, Symbol: {}",
+            orderbook.symbol, symbol
+        );
 
         // Process incoming messages
         while let Some(msg) = read.next().await {
@@ -134,6 +142,9 @@ impl WebSocketManager {
     }
 
     async fn update_orderbook(orderbook: &Arc<Orderbook>, data: L2BookData) -> Result<()> {
+        let bids_count = data.levels.get(0).map(|v| v.len()).unwrap_or(0);
+        let asks_count = data.levels.get(1).map(|v| v.len()).unwrap_or(0);
+
         // Update bids
         for level in data.levels.get(0).unwrap_or(&vec![]) {
             let price = level
@@ -161,6 +172,11 @@ impl WebSocketManager {
 
             orderbook.update_level(OrderSide::Ask, price, size);
         }
+
+        debug!(
+            "📖 Orderbook updated - {} | Coin: {} | Bids: {}, Asks: {}",
+            orderbook.symbol, data.coin, bids_count, asks_count
+        );
 
         Ok(())
     }
