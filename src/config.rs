@@ -7,10 +7,8 @@ use std::env;
 pub struct Config {
     pub api_url: String,
     pub ws_url: String,
-    pub private_key: String,
-    pub wallet_address: String,
-    pub agent_private_key: Option<String>,
-    pub agent_wallet_address: Option<String>,
+    pub agent_private_key: String,
+    pub agent_wallet_address: String,
     pub master_wallet_address: Option<String>,
     pub strategy: StrategyConfig,
     pub risk: RiskConfig,
@@ -73,15 +71,14 @@ impl Config {
         let ws_url = env::var("HYPERLIQUID_WS_URL")
             .unwrap_or_else(|_| "wss://api.hyperliquid.xyz/ws".to_string());
 
-        let private_key = env::var("PRIVATE_KEY")
-            .context("PRIVATE_KEY must be set in .env file")?;
+        // Agent wallet configuration (REQUIRED for Hyperliquid agent trading)
+        let agent_private_key = env::var("HL_API_AGENT_PRIVATE_KEY")
+            .context("HL_API_AGENT_PRIVATE_KEY must be set in .env file")?;
 
-        // Derive wallet address from private key (we'll implement this with ethers)
-        let wallet_address = derive_address_from_private_key(&private_key)?;
+        // Derive agent wallet address from private key
+        let agent_wallet_address = derive_address_from_private_key(&agent_private_key)?;
 
-        // Optional agent wallet configuration (for Hyperliquid agent trading)
-        let agent_private_key = env::var("HL_API_AGENT_PRIVATE_KEY").ok();
-        let agent_wallet_address = env::var("HL_API_AGENT_WALLET_ADDRESS").ok();
+        // Optional master wallet address (for reference, not used in agent mode)
         let master_wallet_address = env::var("HL_MASTER_WALLET_ADDRESS").ok();
 
         let strategy = StrategyConfig {
@@ -146,8 +143,6 @@ impl Config {
         Ok(Config {
             api_url,
             ws_url,
-            private_key,
-            wallet_address,
             agent_private_key,
             agent_wallet_address,
             master_wallet_address,

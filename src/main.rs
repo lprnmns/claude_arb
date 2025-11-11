@@ -57,7 +57,7 @@ async fn main() {
     let config = match Config::from_env() {
         Ok(cfg) => {
             info!("✅ Configuration loaded successfully");
-            info!("   Wallet: {}", cfg.wallet_address);
+            info!("   Agent Wallet: {}", cfg.agent_wallet_address);
             info!("   BPS Threshold: {}", cfg.strategy.bps_threshold);
             info!("   Position Size: ${}", cfg.strategy.position_size_usd);
             info!("   Leverage: {}x", cfg.strategy.leverage);
@@ -83,9 +83,10 @@ async fn main() {
     // Initialize components
     info!("🔧 Initializing components...");
 
-    let client = match HyperliquidClient::new(config.api_url.clone(), config.private_key.clone()) {
+    let client = match HyperliquidClient::new(config.api_url.clone(), config.agent_private_key.clone()) {
         Ok(c) => {
-            info!("✅ API client initialized");
+            info!("✅ API client initialized (Agent Mode)");
+            info!("   Trading wallet: {}", c.address());
             Arc::new(c)
         }
         Err(e) => {
