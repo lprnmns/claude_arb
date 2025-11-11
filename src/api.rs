@@ -56,10 +56,7 @@ impl HyperliquidClient {
         if !response.status().is_success() {
             let status = response.status();
             let text = response.text().await.unwrap_or_default();
-            return Err(BotError::Api(format!(
-                "API error {}: {}",
-                status, text
-            )));
+            return Err(BotError::Api(format!("API error {}: {}", status, text)));
         }
 
         let user_state: UserState = response
@@ -180,7 +177,9 @@ impl HyperliquidClient {
             .json(&signed_action)
             .send()
             .await
-            .map_err(|e| BotError::OrderExecution(format!("Failed to place batch orders: {}", e)))?;
+            .map_err(|e| {
+                BotError::OrderExecution(format!("Failed to place batch orders: {}", e))
+            })?;
 
         if !response.status().is_success() {
             let status = response.status();
@@ -280,7 +279,7 @@ impl HyperliquidClient {
             "BTC" => Ok(0),
             "ETH" => Ok(1),
             "SOL" => Ok(2),
-            _ => Err(BotError::Api(format!("Unknown symbol: {}", symbol)))
+            _ => Err(BotError::Api(format!("Unknown symbol: {}", symbol))),
         }
     }
 
@@ -347,8 +346,11 @@ impl HyperliquidClient {
         );
 
         let mut message = BTreeMap::new();
-        message.insert("source".to_string(), serde_json::json!("a"));  // "a" for mainnet
-        message.insert("connectionId".to_string(), serde_json::json!(format!("0x{}", hex::encode(action_hash))));
+        message.insert("source".to_string(), serde_json::json!("a")); // "a" for mainnet
+        message.insert(
+            "connectionId".to_string(),
+            serde_json::json!(format!("0x{}", hex::encode(action_hash))),
+        );
 
         let typed_data = TypedData {
             domain,
@@ -358,7 +360,8 @@ impl HyperliquidClient {
         };
 
         // Sign with EIP-712
-        let signature = self.wallet
+        let signature = self
+            .wallet
             .sign_typed_data(&typed_data)
             .await
             .map_err(|e| BotError::Api(format!("Failed to sign typed data: {}", e)))?;
@@ -375,10 +378,7 @@ impl HyperliquidClient {
         }))
     }
 
-    async fn sign_batch_actions(
-        &self,
-        actions: &[serde_json::Value],
-    ) -> Result<serde_json::Value> {
+    async fn sign_batch_actions(&self, actions: &[serde_json::Value]) -> Result<serde_json::Value> {
         // For batch orders, we use the same nonce for all
         // This ensures atomic execution
         let timestamp = chrono::Utc::now().timestamp_millis() as u64;
@@ -392,7 +392,8 @@ impl HyperliquidClient {
         let message = serde_json::to_string(&payload)
             .map_err(|e| BotError::Api(format!("Failed to serialize batch payload: {}", e)))?;
 
-        let signature = self.wallet
+        let signature = self
+            .wallet
             .sign_message(message.as_bytes())
             .await
             .map_err(|e| BotError::Api(format!("Failed to sign batch message: {}", e)))?;
@@ -448,9 +449,9 @@ pub struct L2Snapshot {
 
 #[derive(Debug, Deserialize)]
 pub struct L2Level {
-    pub px: String,  // Price
-    pub sz: String,  // Size
-    pub n: u64,      // Number of orders
+    pub px: String, // Price
+    pub sz: String, // Size
+    pub n: u64,     // Number of orders
 }
 
 #[derive(Debug, Deserialize)]
