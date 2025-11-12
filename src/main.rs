@@ -34,10 +34,11 @@ async fn main() {
     let (non_blocking, _guard) = tracing_appender::non_blocking(file_appender);
 
     // Initialize logging with both console and file output
+    // Respects RUST_LOG env var (e.g., RUST_LOG=debug), defaults to INFO if not set
     tracing_subscriber::registry()
         .with(
-            tracing_subscriber::EnvFilter::from_default_env()
-                .add_directive(tracing::Level::INFO.into()),
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info")),
         )
         .with(
             tracing_subscriber::fmt::layer()
