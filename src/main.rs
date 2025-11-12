@@ -128,7 +128,7 @@ async fn main() {
     info!("📍 Spot symbol mapping: {} → {}", config.symbols.spot_symbol, spot_coin_symbol);
 
     if let Err(e) = ws_manager
-        .subscribe_orderbook(spot_coin_symbol, spot_orderbook.clone())
+        .subscribe_orderbook(spot_coin_symbol.clone(), spot_orderbook.clone())
         .await
     {
         error!("Failed to subscribe to spot orderbook: {}", e);
@@ -144,6 +144,7 @@ async fn main() {
         config.clone(),
         perp_orderbook.clone(),
         spot_orderbook.clone(),
+        spot_coin_symbol.clone(), // Mapped symbol for API orders (e.g., @107)
     );
 
     let risk_manager = RiskManager::new(config.risk.clone());
@@ -280,7 +281,7 @@ async fn run_trading_loop(
                                 if let Err(e) = client.cancel_all_orders(&strategy.config.symbols.perp_symbol).await {
                                     error!("Failed to cancel perp orders: {}", e);
                                 }
-                                if let Err(e) = client.cancel_all_orders(&strategy.config.symbols.spot_symbol).await {
+                                if let Err(e) = client.cancel_all_orders(&strategy.spot_market_symbol).await {
                                     error!("Failed to cancel spot orders: {}", e);
                                 }
 
@@ -306,7 +307,7 @@ async fn run_trading_loop(
                                     if let Err(e) = client.cancel_all_orders(&strategy.config.symbols.perp_symbol).await {
                                         error!("Failed to cancel perp orders: {}", e);
                                     }
-                                    if let Err(e) = client.cancel_all_orders(&strategy.config.symbols.spot_symbol).await {
+                                    if let Err(e) = client.cancel_all_orders(&strategy.spot_market_symbol).await {
                                         error!("Failed to cancel spot orders: {}", e);
                                     }
 

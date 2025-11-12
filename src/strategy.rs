@@ -12,6 +12,7 @@ pub struct ArbitrageStrategy {
     pub config: Config,
     pub perp_orderbook: Arc<Orderbook>,
     pub spot_orderbook: Arc<Orderbook>,
+    pub spot_market_symbol: String, // Mapped symbol for API orders (e.g., @107)
     state: ArbitrageState,
     entry_bps: Option<Decimal>,
     entry_spot_price: Option<Decimal>, // For P&L calculation
@@ -22,11 +23,13 @@ impl ArbitrageStrategy {
         config: Config,
         perp_orderbook: Arc<Orderbook>,
         spot_orderbook: Arc<Orderbook>,
+        spot_market_symbol: String,
     ) -> Self {
         Self {
             config,
             perp_orderbook,
             spot_orderbook,
+            spot_market_symbol,
             state: ArbitrageState::Idle,
             entry_bps: None,
             entry_spot_price: None,
@@ -212,9 +215,9 @@ impl ArbitrageStrategy {
                 time_in_force: TimeInForce::IOC,
                 reduce_only: false,
             },
-            // Long spot
+            // Long spot (use mapped symbol for API, e.g., @107)
             OrderRequest {
-                symbol: self.config.symbols.spot_symbol.clone(),
+                symbol: self.spot_market_symbol.clone(),
                 side: Side::Buy,
                 price: spot_bid.price,
                 size: spot_size,
@@ -251,9 +254,9 @@ impl ArbitrageStrategy {
                 time_in_force: TimeInForce::ALO,
                 reduce_only: true,
             },
-            // Close long spot (sell)
+            // Close long spot (sell) - use mapped symbol
             OrderRequest {
-                symbol: self.config.symbols.spot_symbol.clone(),
+                symbol: self.spot_market_symbol.clone(),
                 side: Side::Sell,
                 price: spot_ask.price,
                 size: position_size,
@@ -296,9 +299,9 @@ impl ArbitrageStrategy {
                 time_in_force: TimeInForce::IOC,
                 reduce_only: true,
             },
-            // Close long spot (sell)
+            // Close long spot (sell) - use mapped symbol
             OrderRequest {
-                symbol: self.config.symbols.spot_symbol.clone(),
+                symbol: self.spot_market_symbol.clone(),
                 side: Side::Sell,
                 price: spot_price,
                 size: position_size,
