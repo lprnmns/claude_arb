@@ -1,5 +1,5 @@
 use crate::errors::{BotError, Result};
-use crate::orderbook::{OrderSide, Orderbook};
+use crate::orderbook::Orderbook;
 use futures_util::{SinkExt, StreamExt};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
@@ -164,6 +164,8 @@ impl WebSocketManager {
     }
 
     async fn update_orderbook(orderbook: &Arc<Orderbook>, data: L2BookData) -> Result<()> {
+        use std::collections::BTreeMap;
+
         let bids_count = data.levels.get(0).map(|v| v.len()).unwrap_or(0);
         let asks_count = data.levels.get(1).map(|v| v.len()).unwrap_or(0);
 
@@ -172,7 +174,11 @@ impl WebSocketManager {
             orderbook.symbol, data.coin, bids_count, asks_count
         );
 
-        // Update bids
+        // Build new bids snapshot
+        let mut new_bids = BTreeMap::new();
+        let mut best_bid_price = None;
+        let mut best_bid_size = None;
+
         for (i, level) in data.levels.get(0).unwrap_or(&vec![]).iter().enumerate() {
             let price = level
                 .px
@@ -184,14 +190,18 @@ impl WebSocketManager {
                 .map_err(|e| BotError::Parse(format!("Invalid size: {}", e)))?;
 
             if i == 0 {
-                // Log first bid level for reference
-                debug!("  📈 Best BID: ${} x {}", price, size);
+                best_bid_price = Some(price);
+                best_bid_size = Some(size);
             }
 
-            orderbook.update_level(OrderSide::Bid, price, size);
+            new_bids.insert(price, size);
         }
 
-        // Update asks
+        // Build new asks snapshot
+        let mut new_asks = BTreeMap::new();
+        let mut best_ask_price = None;
+        let mut best_ask_size = None;
+
         for (i, level) in data.levels.get(1).unwrap_or(&vec![]).iter().enumerate() {
             let price = level
                 .px
@@ -203,11 +213,22 @@ impl WebSocketManager {
                 .map_err(|e| BotError::Parse(format!("Invalid size: {}", e)))?;
 
             if i == 0 {
-                // Log first ask level for reference
-                debug!("  📉 Best ASK: ${} x {}", price, size);
+                best_ask_price = Some(price);
+                best_ask_size = Some(size);
             }
 
-            orderbook.update_level(OrderSide::Ask, price, size);
+            new_asks.insert(price, size);
+        }
+
+        // Replace entire orderbook with snapshot (clears old levels)
+        orderbook.update_snapshot(new_bids, new_asks);
+
+        // Log best prices
+        if let (Some(bid_px), Some(bid_sz)) = (best_bid_price, best_bid_size) {
+            debug!("  📈 Best BID: ${} x {}", bid_px, bid_sz);
+        }
+        if let (Some(ask_px), Some(ask_sz)) = (best_ask_price, best_ask_size) {
+            debug!("  📉 Best ASK: ${} x {}", ask_px, ask_sz);
         }
 
         debug!(

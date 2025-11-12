@@ -56,6 +56,19 @@ impl Orderbook {
         *self.last_update.write() = Utc::now();
     }
 
+    /// Replace entire orderbook with snapshot (clears old levels)
+    pub fn update_snapshot(&self, new_bids: BTreeMap<Price, Size>, new_asks: BTreeMap<Price, Size>) {
+        {
+            let mut bids = self.bids.write();
+            *bids = new_bids;
+        }
+        {
+            let mut asks = self.asks.write();
+            *asks = new_asks;
+        }
+        *self.last_update.write() = Utc::now();
+    }
+
     /// Get best bid (highest buy price)
     pub fn best_bid(&self) -> Option<PriceLevel> {
         let bids = self.bids.read();
