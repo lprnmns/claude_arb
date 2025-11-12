@@ -4,6 +4,7 @@ mod errors;
 mod orderbook;
 mod risk;
 mod strategy;
+mod symbol_mapping;
 mod types;
 mod websocket;
 
@@ -12,6 +13,7 @@ use config::Config;
 use orderbook::Orderbook;
 use risk::RiskManager;
 use strategy::ArbitrageStrategy;
+use symbol_mapping::map_spot_symbol;
 use types::*;
 use websocket::WebSocketManager;
 
@@ -120,8 +122,12 @@ async fn main() {
         std::process::exit(1);
     }
 
+    // Map spot symbol to Hyperliquid's internal format (e.g., HYPE/USDC → @107)
+    let spot_coin_symbol = map_spot_symbol(&config.symbols.spot_symbol);
+    info!("📍 Spot symbol mapping: {} → {}", config.symbols.spot_symbol, spot_coin_symbol);
+
     if let Err(e) = ws_manager
-        .subscribe_orderbook(config.symbols.spot_symbol.clone(), spot_orderbook.clone())
+        .subscribe_orderbook(spot_coin_symbol, spot_orderbook.clone())
         .await
     {
         error!("Failed to subscribe to spot orderbook: {}", e);

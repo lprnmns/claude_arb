@@ -42,6 +42,7 @@ sha3 = "0.10"
 # Concurrent data structures
 crossbeam = "0.8"
 parking_lot = "0.12"
+once_cell = "1.21"
 
 # Futures
 futures = "0.3"
