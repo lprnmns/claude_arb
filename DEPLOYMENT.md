@@ -2,7 +2,7 @@
 
 ## Current Status
 
-**Latest Commit:** `352c7d5` ⚠️ **CRITICAL FIX - RUST_LOG now works!**
+**Latest Commit:** `97139ec` 🔥 **CRITICAL FIX - BPS now calculates correctly!**
 **Branch:** `claude/hyperliquid-arbitrage-bot-011CUoTEXudVdnxzHRTb2fUV`
 
 ## ✅ What's Fixed
@@ -24,11 +24,18 @@
    - Shows raw messages, parsed data, and coin field values
    - Helps diagnose @107 spot market data processing
 
-5. **✅ CRITICAL: RUST_LOG Environment Variable** (Commit `352c7d5`)
+5. **✅ RUST_LOG Environment Variable** (Commit `352c7d5`)
    - Fixed tracing_subscriber to respect RUST_LOG setting
    - Previous code hardcoded INFO level, ignoring RUST_LOG=debug
    - Now debug logs will actually appear when using RUST_LOG=debug
-   - **This is why debug logs weren't appearing before!**
+
+6. **✅ CRITICAL: Orderbook Snapshot Mode** (Commit `97139ec`) **THE BIG FIX!**
+   - Fixed BPS using stale prices (e.g., -85 BPS bug)
+   - Hyperliquid sends SNAPSHOTS, not deltas
+   - Old code was accumulating price levels instead of replacing them
+   - Example bug: WebSocket shows bid $39.937, BPS used cached bid $40.233
+   - Now: Orderbook clears and replaces all levels on each update
+   - **This fixes the "BPS stuck at constant value" bug!**
 
 ---
 
@@ -67,11 +74,11 @@ git status
 git fetch origin claude/hyperliquid-arbitrage-bot-011CUoTEXudVdnxzHRTb2fUV
 
 # Reset to latest (WARNING: Discards local changes!)
-git reset --hard 352c7d5
+git reset --hard 97139ec
 
 # Verify
 git log -1 --oneline
-# Should show: "352c7d5 fix: Respect RUST_LOG environment variable for log level"
+# Should show: "97139ec fix: Use snapshot mode for orderbook updates (CRITICAL BPS FIX)"
 ```
 
 ### 5️⃣ **Update .env File**
@@ -189,8 +196,8 @@ tail -f bot.log
 **Solution:**
 ```bash
 git log -1 --oneline
-# If NOT "352c7d5", you need to pull latest!
-git reset --hard 352c7d5
+# If NOT "97139ec", you need to pull latest!
+git reset --hard 97139ec
 cargo build --release
 ```
 
@@ -271,7 +278,7 @@ EOF
 
 ## 🎯 **Success Checklist**
 
-- [ ] On commit `352c7d5` or later (CRITICAL for debug logs!)
+- [ ] On commit `97139ec` or later (CRITICAL for BPS accuracy!)
 - [ ] `.env` has `HL_API_AGENT_PRIVATE_KEY` filled
 - [ ] `.env` has `SPOT_SYMBOL=HYPE/USDC`
 - [ ] Bot logs show `vaultAddress: null`
@@ -304,4 +311,4 @@ If bot still not working after following this guide:
 ---
 
 **Last Updated:** 2025-11-12
-**Commit:** 352c7d5
+**Commit:** 97139ec
