@@ -2,7 +2,7 @@
 
 ## Current Status
 
-**Latest Commit:** `ec9455c`
+**Latest Commit:** `352c7d5` ⚠️ **CRITICAL FIX - RUST_LOG now works!**
 **Branch:** `claude/hyperliquid-arbitrage-bot-011CUoTEXudVdnxzHRTb2fUV`
 
 ## ✅ What's Fixed
@@ -23,6 +23,12 @@
    - Comprehensive message logging
    - Shows raw messages, parsed data, and coin field values
    - Helps diagnose @107 spot market data processing
+
+5. **✅ CRITICAL: RUST_LOG Environment Variable** (Commit `352c7d5`)
+   - Fixed tracing_subscriber to respect RUST_LOG setting
+   - Previous code hardcoded INFO level, ignoring RUST_LOG=debug
+   - Now debug logs will actually appear when using RUST_LOG=debug
+   - **This is why debug logs weren't appearing before!**
 
 ---
 
@@ -61,11 +67,11 @@ git status
 git fetch origin claude/hyperliquid-arbitrage-bot-011CUoTEXudVdnxzHRTb2fUV
 
 # Reset to latest (WARNING: Discards local changes!)
-git reset --hard ec9455c
+git reset --hard 352c7d5
 
 # Verify
 git log -1 --oneline
-# Should show: "ec9455c docs: Update deployment guide with enhanced logging info"
+# Should show: "352c7d5 fix: Respect RUST_LOG environment variable for log level"
 ```
 
 ### 5️⃣ **Update .env File**
@@ -183,8 +189,8 @@ tail -f bot.log
 **Solution:**
 ```bash
 git log -1 --oneline
-# If NOT "ec9455c", you need to pull latest!
-git reset --hard ec9455c
+# If NOT "352c7d5", you need to pull latest!
+git reset --hard 352c7d5
 cargo build --release
 ```
 
@@ -265,7 +271,7 @@ EOF
 
 ## 🎯 **Success Checklist**
 
-- [ ] On commit `ec9455c` or later
+- [ ] On commit `352c7d5` or later (CRITICAL for debug logs!)
 - [ ] `.env` has `HL_API_AGENT_PRIVATE_KEY` filled
 - [ ] `.env` has `SPOT_SYMBOL=HYPE/USDC`
 - [ ] Bot logs show `vaultAddress: null`
@@ -298,4 +304,4 @@ If bot still not working after following this guide:
 ---
 
 **Last Updated:** 2025-11-12
-**Commit:** ec9455c
+**Commit:** 352c7d5
