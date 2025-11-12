@@ -35,6 +35,12 @@ struct PerpMeta {
 struct PerpAsset {
     name: String,
     #[serde(default)]
+    sz_decimals: u32,
+    #[serde(default)]
+    max_leverage: u32,
+    #[serde(default)]
+    margin_table_id: u32,
+    #[serde(default)]
     is_delisted: bool,
 }
 
@@ -49,6 +55,8 @@ struct SpotAsset {
     tokens: Vec<u32>,
     name: String,
     index: u32,
+    #[serde(default)]
+    is_canonical: bool,
 }
 
 /// Fetch asset info from Hyperliquid meta API

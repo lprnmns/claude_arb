@@ -394,10 +394,8 @@ mod tests {
         let config = Config {
             api_url: "".into(),
             ws_url: "".into(),
-            private_key: "0000000000000000000000000000000000000000000000000000000000000001".into(),
-            wallet_address: "0x0000000000000000000000000000000000000000".into(),
-            agent_private_key: None,
-            agent_wallet_address: None,
+            agent_private_key: "0000000000000000000000000000000000000000000000000000000000000001".into(),
+            agent_wallet_address: "0x0000000000000000000000000000000000000000".into(),
             master_wallet_address: None,
             strategy: crate::config::StrategyConfig {
                 bps_threshold: dec!(20),
