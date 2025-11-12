@@ -1,4 +1,5 @@
 mod api;
+mod asset_info;
 mod config;
 mod errors;
 mod orderbook;
@@ -9,6 +10,7 @@ mod types;
 mod websocket;
 
 use api::HyperliquidClient;
+use asset_info::fetch_asset_info;
 use config::Config;
 use orderbook::Orderbook;
 use risk::RiskManager;
@@ -99,6 +101,30 @@ async fn main() {
             }
         };
 
+    // Fetch asset information from Hyperliquid meta API
+    info!("📊 Fetching asset information from Hyperliquid...");
+    let asset_info = match fetch_asset_info(
+        &config.api_url,
+        &config.symbols.perp_symbol,
+        &config.symbols.spot_symbol,
+    )
+    .await
+    {
+        Ok(info) => {
+            info!(
+                "✅ Asset info loaded - Perp index: {}, Spot index: {} (API: {})",
+                info.perp_index,
+                info.spot_index,
+                info.spot_asset()
+            );
+            Arc::new(info)
+        }
+        Err(e) => {
+            error!("❌ Failed to fetch asset info: {}", e);
+            std::process::exit(1);
+        }
+    };
+
     // Create orderbooks
     let perp_orderbook = Arc::new(Orderbook::new(format!(
         "{}-PERP",
@@ -144,7 +170,8 @@ async fn main() {
         config.clone(),
         perp_orderbook.clone(),
         spot_orderbook.clone(),
-        spot_coin_symbol.clone(), // Mapped symbol for API orders (e.g., @107)
+        asset_info.clone(), // Asset indices for order API
+        spot_coin_symbol.clone(), // Mapped symbol for WebSocket (e.g., @107)
     );
 
     let risk_manager = RiskManager::new(config.risk.clone());

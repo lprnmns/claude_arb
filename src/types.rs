@@ -32,7 +32,11 @@ pub enum TimeInForce {
 /// Order request
 #[derive(Debug, Clone, Serialize)]
 pub struct OrderRequest {
-    pub symbol: String,
+    /// Asset index for API (perp index or 10000+spot_index)
+    pub asset: u32,
+    /// Symbol name for logging/debugging only
+    #[serde(skip)]
+    pub symbol_name: String,
     pub side: Side,
     pub price: Decimal,
     pub size: Decimal,

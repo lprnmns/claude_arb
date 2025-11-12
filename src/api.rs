@@ -141,7 +141,8 @@ impl HyperliquidClient {
         // Build all orders into a single action
         let mut order_objects = Vec::new();
         for order in &orders {
-            let asset_index = self.get_asset_index(&order.symbol)?;
+            // Use asset index directly from OrderRequest (e.g., 159 for HYPE perp, 10107 for HYPE spot)
+            let asset_index = order.asset;
             let is_buy = order.side == Side::Buy;
             let price = order.price.to_string();
             let size = order.size.to_string();
@@ -271,20 +272,9 @@ impl HyperliquidClient {
 
     // Private helper methods
 
-    fn get_asset_index(&self, symbol: &str) -> Result<u32> {
-        // Hyperliquid asset index mapping
-        // TODO: Fetch dynamically from /info endpoint
-        match symbol {
-            "HYPE" => Ok(107),
-            "BTC" => Ok(0),
-            "ETH" => Ok(1),
-            "SOL" => Ok(2),
-            _ => Err(BotError::Api(format!("Unknown symbol: {}", symbol))),
-        }
-    }
-
     fn build_order_action(&self, order: &OrderRequest) -> Result<serde_json::Value> {
-        let asset_index = self.get_asset_index(&order.symbol)?;
+        // Use asset index directly from OrderRequest (e.g., 159 for HYPE perp, 10107 for HYPE spot)
+        let asset_index = order.asset;
         let is_buy = order.side == Side::Buy;
         let price = order.price.to_string();
         let size = order.size.to_string();

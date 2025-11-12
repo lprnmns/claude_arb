@@ -1,3 +1,4 @@
+use crate::asset_info::AssetInfo;
 use crate::config::Config;
 use crate::errors::{BotError, Result};
 use crate::orderbook::Orderbook;
@@ -12,7 +13,8 @@ pub struct ArbitrageStrategy {
     pub config: Config,
     pub perp_orderbook: Arc<Orderbook>,
     pub spot_orderbook: Arc<Orderbook>,
-    pub spot_market_symbol: String, // Mapped symbol for API orders (e.g., @107)
+    pub asset_info: Arc<AssetInfo>, // Asset indices for API orders
+    pub spot_market_symbol: String, // Mapped symbol for WebSocket (e.g., @107)
     state: ArbitrageState,
     entry_bps: Option<Decimal>,
     entry_spot_price: Option<Decimal>, // For P&L calculation
@@ -23,12 +25,14 @@ impl ArbitrageStrategy {
         config: Config,
         perp_orderbook: Arc<Orderbook>,
         spot_orderbook: Arc<Orderbook>,
+        asset_info: Arc<AssetInfo>,
         spot_market_symbol: String,
     ) -> Self {
         Self {
             config,
             perp_orderbook,
             spot_orderbook,
+            asset_info,
             spot_market_symbol,
             state: ArbitrageState::Idle,
             entry_bps: None,
@@ -207,7 +211,8 @@ impl ArbitrageStrategy {
         let orders = vec![
             // Short perp (SAME coin amount as spot)
             OrderRequest {
-                symbol: self.config.symbols.perp_symbol.clone(),
+                asset: self.asset_info.perp_asset(), // e.g., 159 for HYPE perp
+                symbol_name: self.config.symbols.perp_symbol.clone(),
                 side: Side::Sell,
                 price: perp_ask.price,
                 size: perp_size, // Now equal to spot_size!
@@ -215,9 +220,10 @@ impl ArbitrageStrategy {
                 time_in_force: TimeInForce::IOC,
                 reduce_only: false,
             },
-            // Long spot (use mapped symbol for API, e.g., @107)
+            // Long spot (use integer asset: 10000 + spot_index, e.g., 10107)
             OrderRequest {
-                symbol: self.spot_market_symbol.clone(),
+                asset: self.asset_info.spot_asset(), // e.g., 10107 for HYPE spot
+                symbol_name: self.spot_market_symbol.clone(),
                 side: Side::Buy,
                 price: spot_bid.price,
                 size: spot_size,
@@ -246,7 +252,8 @@ impl ArbitrageStrategy {
         let orders = vec![
             // Close short perp (buy back)
             OrderRequest {
-                symbol: self.config.symbols.perp_symbol.clone(),
+                asset: self.asset_info.perp_asset(), // e.g., 159 for HYPE perp
+                symbol_name: self.config.symbols.perp_symbol.clone(),
                 side: Side::Buy,
                 price: perp_bid.price,
                 size: position_size,
@@ -254,9 +261,10 @@ impl ArbitrageStrategy {
                 time_in_force: TimeInForce::ALO,
                 reduce_only: true,
             },
-            // Close long spot (sell) - use mapped symbol
+            // Close long spot (sell) - use integer asset
             OrderRequest {
-                symbol: self.spot_market_symbol.clone(),
+                asset: self.asset_info.spot_asset(), // e.g., 10107 for HYPE spot
+                symbol_name: self.spot_market_symbol.clone(),
                 side: Side::Sell,
                 price: spot_ask.price,
                 size: position_size,
@@ -291,7 +299,8 @@ impl ArbitrageStrategy {
         let orders = vec![
             // Close short perp (buy back)
             OrderRequest {
-                symbol: self.config.symbols.perp_symbol.clone(),
+                asset: self.asset_info.perp_asset(), // e.g., 159 for HYPE perp
+                symbol_name: self.config.symbols.perp_symbol.clone(),
                 side: Side::Buy,
                 price: perp_price,
                 size: position_size,
@@ -299,9 +308,10 @@ impl ArbitrageStrategy {
                 time_in_force: TimeInForce::IOC,
                 reduce_only: true,
             },
-            // Close long spot (sell) - use mapped symbol
+            // Close long spot (sell) - use integer asset
             OrderRequest {
-                symbol: self.spot_market_symbol.clone(),
+                asset: self.asset_info.spot_asset(), // e.g., 10107 for HYPE spot
+                symbol_name: self.spot_market_symbol.clone(),
                 side: Side::Sell,
                 price: spot_price,
                 size: position_size,
@@ -429,7 +439,14 @@ mod tests {
         perp_ob.update_level(OrderSide::Ask, dec!(101.0), dec!(100.0));
         spot_ob.update_level(OrderSide::Bid, dec!(100.0), dec!(100.0));
 
-        let strategy = ArbitrageStrategy::new(config, perp_ob, spot_ob);
+        // Create mock asset info
+        let asset_info = Arc::new(crate::asset_info::AssetInfo {
+            perp_index: 159,
+            spot_index: 107,
+            symbol: "HYPE".to_string(),
+        });
+
+        let strategy = ArbitrageStrategy::new(config, perp_ob, spot_ob, asset_info, "@107".to_string());
 
         // BPS = ((101 - 100) / 100) * 10000 = 100 bps
         let bps = strategy.calculate_bps().unwrap();
