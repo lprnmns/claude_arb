@@ -2,7 +2,7 @@
 
 ## Current Status
 
-**Latest Commit:** `910f5d9` 🚀 **CRITICAL FIX - Integer asset format for order API!**
+**Latest Commit:** `768fbb4` 🚀 **ALL FIXES COMPLETE - Bot ready to run!**
 **Branch:** `claude/hyperliquid-arbitrage-bot-011CUoTEXudVdnxzHRTb2fUV`
 
 ## ✅ What's Fixed
@@ -42,7 +42,7 @@
    - Order API now uses mapped symbol (@107) instead of config symbol (HYPE/USDC)
    - All order functions updated: entry, exit, force close, cancel
 
-8. **✅ CRITICAL: Integer Asset Format for Order API** (Commit `910f5d9`) **🚀 NOW READY TO TRADE!**
+8. **✅ CRITICAL: Integer Asset Format for Order API** (Commit `910f5d9`)
    - Fixed persistent "Unknown symbol" order execution errors
    - Root cause: Hyperliquid Order API requires INTEGER asset indices, not strings
    - Created `asset_info` module to fetch indices dynamically from meta API at startup
@@ -50,7 +50,13 @@
    - HYPE spot: asset index = 10107 (10000 + 107)
    - Updated OrderRequest struct: `symbol: String` → `asset: u32`
    - All order building functions now use correct integer format
-   - **This is THE fix that enables order execution!** 🎯
+
+9. **✅ FINAL: Asset Info Parse Error Fix** (Commit `768fbb4`) **🚀 NOW READY TO RUN!**
+   - Fixed "Failed to fetch asset info: Parse error" on startup
+   - Added missing fields to PerpAsset struct (sz_decimals, max_leverage, margin_table_id)
+   - Added missing field to SpotAsset struct (is_canonical)
+   - Bot now successfully fetches and parses asset indices at startup
+   - **All known issues are now resolved!** 🎯
 
 ---
 
@@ -89,11 +95,11 @@ git status
 git fetch origin claude/hyperliquid-arbitrage-bot-011CUoTEXudVdnxzHRTb2fUV
 
 # Reset to latest (WARNING: Discards local changes!)
-git reset --hard 910f5d9
+git reset --hard 768fbb4
 
 # Verify
 git log -1 --oneline
-# Should show: "910f5d9 fix: Use integer asset indices for order API (FIXES ORDER EXECUTION)"
+# Should show: "768fbb4 fix: Add missing fields to asset_info structs for correct API parsing"
 ```
 
 ### 5️⃣ **Update .env File**
@@ -208,14 +214,14 @@ tail -f bot.log
 
 ## 🐛 **Troubleshooting**
 
-### Problem 1: "Vault not registered" or "Unknown symbol" errors
+### Problem 1: "Failed to fetch asset info" or "Unknown symbol" errors
 
-**Cause:** Running old code with vault address or string symbol format
+**Cause:** Running old code with incorrect asset_info parsing or string symbol format
 **Solution:**
 ```bash
 git log -1 --oneline
-# If NOT "910f5d9", you need to pull latest!
-git reset --hard 910f5d9
+# If NOT "768fbb4", you need to pull latest!
+git reset --hard 768fbb4
 cargo build --release
 ```
 
@@ -296,17 +302,18 @@ EOF
 
 ## 🎯 **Success Checklist**
 
-- [ ] On commit `910f5d9` or later (CRITICAL for order execution!)
+- [ ] On commit `768fbb4` (CRITICAL - contains all fixes!)
 - [ ] `.env` has `HL_API_AGENT_PRIVATE_KEY` filled
 - [ ] `.env` has `SPOT_SYMBOL=HYPE/USDC`
 - [ ] Bot logs show `vaultAddress: null`
-- [ ] Bot logs show `Asset info loaded - Perp index: 159, Spot index: 107 (API: 10107)`
+- [ ] Bot logs show `Asset info loaded - Perp index: 159, Spot index: 107 (API: 10107)` ✅ KEY!
 - [ ] Bot logs show `Coin Symbol: @107` for spot
 - [ ] Bot logs show `📨 Raw WebSocket message` for both PERP and SPOT
 - [ ] Bot logs show `✅ Orderbook updated` for both orderbooks
 - [ ] BPS values are realistic (-10 to +10 range)
 - [ ] No "Vault not registered" errors
 - [ ] No "Unknown symbol" errors in order placement
+- [ ] No "Failed to fetch asset info" errors ✅ NEW!
 - [ ] Orders being placed successfully (when BPS > threshold)
 
 ---
@@ -331,4 +338,4 @@ If bot still not working after following this guide:
 ---
 
 **Last Updated:** 2025-11-12
-**Commit:** 910f5d9
+**Commit:** 768fbb4
