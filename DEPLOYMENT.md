@@ -2,7 +2,7 @@
 
 ## Current Status
 
-**Latest Commit:** `dca79ba`
+**Latest Commit:** `ec9455c`
 **Branch:** `claude/hyperliquid-arbitrage-bot-011CUoTEXudVdnxzHRTb2fUV`
 
 ## ✅ What's Fixed
@@ -61,11 +61,11 @@ git status
 git fetch origin claude/hyperliquid-arbitrage-bot-011CUoTEXudVdnxzHRTb2fUV
 
 # Reset to latest (WARNING: Discards local changes!)
-git reset --hard dca79ba
+git reset --hard ec9455c
 
 # Verify
 git log -1 --oneline
-# Should show: "dca79ba debug: Add comprehensive WebSocket message logging"
+# Should show: "ec9455c docs: Update deployment guide with enhanced logging info"
 ```
 
 ### 5️⃣ **Update .env File**
@@ -183,8 +183,8 @@ tail -f bot.log
 **Solution:**
 ```bash
 git log -1 --oneline
-# If NOT "dca79ba", you need to pull latest!
-git reset --hard dca79ba
+# If NOT "ec9455c", you need to pull latest!
+git reset --hard ec9455c
 cargo build --release
 ```
 
@@ -265,7 +265,7 @@ EOF
 
 ## 🎯 **Success Checklist**
 
-- [ ] On commit `dca79ba` or later
+- [ ] On commit `ec9455c` or later
 - [ ] `.env` has `HL_API_AGENT_PRIVATE_KEY` filled
 - [ ] `.env` has `SPOT_SYMBOL=HYPE/USDC`
 - [ ] Bot logs show `vaultAddress: null`
@@ -298,4 +298,4 @@ If bot still not working after following this guide:
 ---
 
 **Last Updated:** 2025-11-12
-**Commit:** dca79ba
+**Commit:** ec9455c
