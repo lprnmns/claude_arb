@@ -2,7 +2,7 @@
 
 ## Current Status
 
-**Latest Commit:** `768fbb4` 🚀 **ALL FIXES COMPLETE - Bot ready to run!**
+**Latest Commit:** `175b991` 🚀 **ALL FIXES COMPLETE - Bot ready to run!**
 **Branch:** `claude/hyperliquid-arbitrage-bot-011CUoTEXudVdnxzHRTb2fUV`
 
 ## ✅ What's Fixed
@@ -95,11 +95,11 @@ git status
 git fetch origin claude/hyperliquid-arbitrage-bot-011CUoTEXudVdnxzHRTb2fUV
 
 # Reset to latest (WARNING: Discards local changes!)
-git reset --hard 768fbb4
+git reset --hard 175b991
 
 # Verify
 git log -1 --oneline
-# Should show: "768fbb4 fix: Add missing fields to asset_info structs for correct API parsing"
+# Should show: "175b991 docs: Update DEPLOYMENT.md and deploy.sh to commit 768fbb4"
 ```
 
 ### 5️⃣ **Update .env File**
@@ -220,8 +220,8 @@ tail -f bot.log
 **Solution:**
 ```bash
 git log -1 --oneline
-# If NOT "768fbb4", you need to pull latest!
-git reset --hard 768fbb4
+# If NOT "175b991", you need to pull latest!
+git reset --hard 175b991
 cargo build --release
 ```
 
@@ -302,7 +302,7 @@ EOF
 
 ## 🎯 **Success Checklist**
 
-- [ ] On commit `768fbb4` (CRITICAL - contains all fixes!)
+- [ ] On commit `175b991` (CRITICAL - contains all fixes!)
 - [ ] `.env` has `HL_API_AGENT_PRIVATE_KEY` filled
 - [ ] `.env` has `SPOT_SYMBOL=HYPE/USDC`
 - [ ] Bot logs show `vaultAddress: null`
@@ -338,4 +338,4 @@ If bot still not working after following this guide:
 ---
 
 **Last Updated:** 2025-11-12
-**Commit:** 768fbb4
+**Commit:** 175b991

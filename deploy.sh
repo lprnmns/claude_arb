@@ -16,7 +16,7 @@ NC='\033[0m' # No Color
 
 # Configuration
 BRANCH="claude/hyperliquid-arbitrage-bot-011CUoTEXudVdnxzHRTb2fUV"
-TARGET_COMMIT="768fbb4"
+TARGET_COMMIT="175b991"  # Latest commit with all fixes
 BOT_DIR="/home/ubuntu/claude_arb"
 BOT_NAME="hyperliquid-arb-bot"
 
