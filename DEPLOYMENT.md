@@ -2,7 +2,7 @@
 
 ## Current Status
 
-**Latest Commit:** `ad86b52` 🚀 **ALL SYSTEMS GO - Bot ready for live trading!**
+**Latest Commit:** `910f5d9` 🚀 **CRITICAL FIX - Integer asset format for order API!**
 **Branch:** `claude/hyperliquid-arbitrage-bot-011CUoTEXudVdnxzHRTb2fUV`
 
 ## ✅ What's Fixed
@@ -37,11 +37,20 @@
    - Now: Orderbook clears and replaces all levels on each update
    - **This fixes the "BPS stuck at constant value" bug!**
 
-7. **✅ FINAL FIX: Spot Order Symbol Mapping** (Commit `ad86b52`) **READY TO TRADE!**
+7. **✅ FINAL FIX: Spot Order Symbol Mapping** (Commit `ad86b52`)
    - Fixed "Unknown symbol: HYPE/USDC" API errors
    - Order API now uses mapped symbol (@107) instead of config symbol (HYPE/USDC)
    - All order functions updated: entry, exit, force close, cancel
-   - Bot can now execute real trades! 🎯
+
+8. **✅ CRITICAL: Integer Asset Format for Order API** (Commit `910f5d9`) **🚀 NOW READY TO TRADE!**
+   - Fixed persistent "Unknown symbol" order execution errors
+   - Root cause: Hyperliquid Order API requires INTEGER asset indices, not strings
+   - Created `asset_info` module to fetch indices dynamically from meta API at startup
+   - HYPE perpetual: asset index = 159
+   - HYPE spot: asset index = 10107 (10000 + 107)
+   - Updated OrderRequest struct: `symbol: String` → `asset: u32`
+   - All order building functions now use correct integer format
+   - **This is THE fix that enables order execution!** 🎯
 
 ---
 
@@ -71,7 +80,7 @@ git log -1 --oneline
 git status
 ```
 
-**Expected:** You should be on an older commit (like `07c2d21`) which has the vault bug.
+**Expected:** If you're on an older commit (before `910f5d9`), you'll need to update.
 
 ### 4️⃣ **Pull Latest Code**
 
@@ -80,11 +89,11 @@ git status
 git fetch origin claude/hyperliquid-arbitrage-bot-011CUoTEXudVdnxzHRTb2fUV
 
 # Reset to latest (WARNING: Discards local changes!)
-git reset --hard ad86b52
+git reset --hard 910f5d9
 
 # Verify
 git log -1 --oneline
-# Should show: "ad86b52 fix: Use mapped spot symbol (@107) for order API calls"
+# Should show: "910f5d9 fix: Use integer asset indices for order API (FIXES ORDER EXECUTION)"
 ```
 
 ### 5️⃣ **Update .env File**
@@ -146,6 +155,9 @@ tail -f bot.log
 ✅ Configuration loaded successfully
    Agent Wallet: 0x05acb7e4ed6c51929059f44c8f710ea7558bf861
 
+📊 Fetching asset information from Hyperliquid...
+✅ Asset info loaded - Perp index: 159, Spot index: 107 (API: 10107)
+
 📍 Spot symbol mapping: HYPE/USDC → @107
 
 📡 Subscribing to Hyperliquid L2Book - Orderbook: HYPE-PERP, Coin Symbol: HYPE
@@ -196,14 +208,14 @@ tail -f bot.log
 
 ## 🐛 **Troubleshooting**
 
-### Problem 1: "Vault not registered"
+### Problem 1: "Vault not registered" or "Unknown symbol" errors
 
-**Cause:** Running old code with vault address
+**Cause:** Running old code with vault address or string symbol format
 **Solution:**
 ```bash
 git log -1 --oneline
-# If NOT "ad86b52", you need to pull latest!
-git reset --hard ad86b52
+# If NOT "910f5d9", you need to pull latest!
+git reset --hard 910f5d9
 cargo build --release
 ```
 
@@ -284,16 +296,18 @@ EOF
 
 ## 🎯 **Success Checklist**
 
-- [ ] On commit `ad86b52` or later (CRITICAL for BPS accuracy!)
+- [ ] On commit `910f5d9` or later (CRITICAL for order execution!)
 - [ ] `.env` has `HL_API_AGENT_PRIVATE_KEY` filled
 - [ ] `.env` has `SPOT_SYMBOL=HYPE/USDC`
 - [ ] Bot logs show `vaultAddress: null`
+- [ ] Bot logs show `Asset info loaded - Perp index: 159, Spot index: 107 (API: 10107)`
 - [ ] Bot logs show `Coin Symbol: @107` for spot
 - [ ] Bot logs show `📨 Raw WebSocket message` for both PERP and SPOT
 - [ ] Bot logs show `✅ Orderbook updated` for both orderbooks
 - [ ] BPS values are realistic (-10 to +10 range)
 - [ ] No "Vault not registered" errors
-- [ ] Orders being placed (when BPS > threshold)
+- [ ] No "Unknown symbol" errors in order placement
+- [ ] Orders being placed successfully (when BPS > threshold)
 
 ---
 
@@ -317,4 +331,4 @@ If bot still not working after following this guide:
 ---
 
 **Last Updated:** 2025-11-12
-**Commit:** ad86b52
+**Commit:** 910f5d9
