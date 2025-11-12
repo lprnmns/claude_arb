@@ -2,7 +2,7 @@
 
 ## Current Status
 
-**Latest Commit:** `97139ec` 🔥 **CRITICAL FIX - BPS now calculates correctly!**
+**Latest Commit:** `ad86b52` 🚀 **ALL SYSTEMS GO - Bot ready for live trading!**
 **Branch:** `claude/hyperliquid-arbitrage-bot-011CUoTEXudVdnxzHRTb2fUV`
 
 ## ✅ What's Fixed
@@ -29,13 +29,19 @@
    - Previous code hardcoded INFO level, ignoring RUST_LOG=debug
    - Now debug logs will actually appear when using RUST_LOG=debug
 
-6. **✅ CRITICAL: Orderbook Snapshot Mode** (Commit `97139ec`) **THE BIG FIX!**
+6. **✅ CRITICAL: Orderbook Snapshot Mode** (Commit `ad86b52`)
    - Fixed BPS using stale prices (e.g., -85 BPS bug)
    - Hyperliquid sends SNAPSHOTS, not deltas
    - Old code was accumulating price levels instead of replacing them
    - Example bug: WebSocket shows bid $39.937, BPS used cached bid $40.233
    - Now: Orderbook clears and replaces all levels on each update
    - **This fixes the "BPS stuck at constant value" bug!**
+
+7. **✅ FINAL FIX: Spot Order Symbol Mapping** (Commit `ad86b52`) **READY TO TRADE!**
+   - Fixed "Unknown symbol: HYPE/USDC" API errors
+   - Order API now uses mapped symbol (@107) instead of config symbol (HYPE/USDC)
+   - All order functions updated: entry, exit, force close, cancel
+   - Bot can now execute real trades! 🎯
 
 ---
 
@@ -74,11 +80,11 @@ git status
 git fetch origin claude/hyperliquid-arbitrage-bot-011CUoTEXudVdnxzHRTb2fUV
 
 # Reset to latest (WARNING: Discards local changes!)
-git reset --hard 97139ec
+git reset --hard ad86b52
 
 # Verify
 git log -1 --oneline
-# Should show: "97139ec fix: Use snapshot mode for orderbook updates (CRITICAL BPS FIX)"
+# Should show: "ad86b52 fix: Use mapped spot symbol (@107) for order API calls"
 ```
 
 ### 5️⃣ **Update .env File**
@@ -196,8 +202,8 @@ tail -f bot.log
 **Solution:**
 ```bash
 git log -1 --oneline
-# If NOT "97139ec", you need to pull latest!
-git reset --hard 97139ec
+# If NOT "ad86b52", you need to pull latest!
+git reset --hard ad86b52
 cargo build --release
 ```
 
@@ -278,7 +284,7 @@ EOF
 
 ## 🎯 **Success Checklist**
 
-- [ ] On commit `97139ec` or later (CRITICAL for BPS accuracy!)
+- [ ] On commit `ad86b52` or later (CRITICAL for BPS accuracy!)
 - [ ] `.env` has `HL_API_AGENT_PRIVATE_KEY` filled
 - [ ] `.env` has `SPOT_SYMBOL=HYPE/USDC`
 - [ ] Bot logs show `vaultAddress: null`
@@ -311,4 +317,4 @@ If bot still not working after following this guide:
 ---
 
 **Last Updated:** 2025-11-12
-**Commit:** 97139ec
+**Commit:** ad86b52
