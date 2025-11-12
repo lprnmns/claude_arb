@@ -2,7 +2,7 @@
 
 ## Current Status
 
-**Latest Commit:** `38f0d7c`
+**Latest Commit:** `dca79ba`
 **Branch:** `claude/hyperliquid-arbitrage-bot-011CUoTEXudVdnxzHRTb2fUV`
 
 ## ✅ What's Fixed
@@ -18,6 +18,11 @@
 3. **✅ Correct BPS Calculation**
    - Real perp-spot arbitrage (not internal spread)
    - HYPE PERP vs HYPE SPOT (@107)
+
+4. **✅ Enhanced WebSocket Diagnostics**
+   - Comprehensive message logging
+   - Shows raw messages, parsed data, and coin field values
+   - Helps diagnose @107 spot market data processing
 
 ---
 
@@ -56,11 +61,11 @@ git status
 git fetch origin claude/hyperliquid-arbitrage-bot-011CUoTEXudVdnxzHRTb2fUV
 
 # Reset to latest (WARNING: Discards local changes!)
-git reset --hard 38f0d7c
+git reset --hard dca79ba
 
 # Verify
 git log -1 --oneline
-# Should show: "38f0d7c feat: Add spot market symbol mapping"
+# Should show: "dca79ba debug: Add comprehensive WebSocket message logging"
 ```
 
 ### 5️⃣ **Update .env File**
@@ -130,6 +135,22 @@ tail -f bot.log
 ✅ WebSocket connected - Orderbook: HYPE-PERP, Symbol: HYPE
 ✅ WebSocket connected - Orderbook: HYPE-SPOT, Symbol: @107
 
+📨 Raw WebSocket message for HYPE-PERP (first 300 chars): ...
+📬 Parsed message for HYPE-PERP - Channel: l2Book, has data: true
+📊 L2Book data for HYPE-PERP - Coin field: HYPE, Levels count: 2
+🔄 Starting orderbook update - HYPE-PERP | Coin: HYPE | Bids: 20, Asks: 20
+  📈 Best BID: $24.5678 x 1000
+  📉 Best ASK: $24.5680 x 500
+✅ Orderbook updated - HYPE-PERP | Coin: HYPE | Bids: 20, Asks: 20
+
+📨 Raw WebSocket message for HYPE/USDC-SPOT (first 300 chars): ...
+📬 Parsed message for HYPE/USDC-SPOT - Channel: l2Book, has data: true
+📊 L2Book data for HYPE/USDC-SPOT - Coin field: @107, Levels count: 2
+🔄 Starting orderbook update - HYPE/USDC-SPOT | Coin: @107 | Bids: 20, Asks: 20
+  📈 Best BID: $24.5650 x 800
+  📉 Best ASK: $24.5652 x 600
+✅ Orderbook updated - HYPE/USDC-SPOT | Coin: @107 | Bids: 20, Asks: 20
+
 ✅ All components initialized
 🎯 Starting trading loop...
 
@@ -162,8 +183,8 @@ tail -f bot.log
 **Solution:**
 ```bash
 git log -1 --oneline
-# If NOT "38f0d7c", you need to pull latest!
-git reset --hard 38f0d7c
+# If NOT "dca79ba", you need to pull latest!
+git reset --hard dca79ba
 cargo build --release
 ```
 
@@ -178,7 +199,34 @@ cargo build --release
 
 **If missing:** Pull latest code
 
-### Problem 3: No orderbook data
+### Problem 3: No orderbook updates (WebSocket connected but no data)
+
+**Symptom:** Bot shows `✅ WebSocket connected` but NO `📨 Raw WebSocket message` logs
+**Cause:** WebSocket isn't receiving messages OR messages are being filtered out
+
+**Check with enhanced debug logging:**
+```bash
+# Look for raw WebSocket messages
+tail -100 bot.log | grep "📨 Raw WebSocket"
+
+# If NONE appear, messages aren't arriving
+# If they appear for PERP but not SPOT, spot subscription failed
+```
+
+**What debug logs reveal:**
+- `📨 Raw WebSocket message` - Message arrived
+- `📬 Parsed message` - Message parsed successfully
+- `📊 L2Book data` - Shows coin field value
+- `🔄 Starting orderbook update` - Update begins
+- `✅ Orderbook updated` - Update completed
+
+**If no messages for @107:**
+Check subscription response in logs:
+```bash
+grep "Subscription confirmed" bot.log
+```
+
+### Problem 4: No orderbook data
 
 **Check:**
 ```bash
@@ -217,11 +265,13 @@ EOF
 
 ## 🎯 **Success Checklist**
 
-- [ ] On commit `38f0d7c` or later
+- [ ] On commit `dca79ba` or later
 - [ ] `.env` has `HL_API_AGENT_PRIVATE_KEY` filled
 - [ ] `.env` has `SPOT_SYMBOL=HYPE/USDC`
 - [ ] Bot logs show `vaultAddress: null`
 - [ ] Bot logs show `Coin Symbol: @107` for spot
+- [ ] Bot logs show `📨 Raw WebSocket message` for both PERP and SPOT
+- [ ] Bot logs show `✅ Orderbook updated` for both orderbooks
 - [ ] BPS values are realistic (-10 to +10 range)
 - [ ] No "Vault not registered" errors
 - [ ] Orders being placed (when BPS > threshold)
@@ -248,4 +298,4 @@ If bot still not working after following this guide:
 ---
 
 **Last Updated:** 2025-11-12
-**Commit:** 38f0d7c
+**Commit:** dca79ba
