@@ -110,6 +110,13 @@ impl WebSocketManager {
     }
 
     async fn handle_message(text: &str, orderbook: &Arc<Orderbook>) -> Result<()> {
+        // Log raw message for debugging (truncated to avoid spam)
+        debug!(
+            "📨 Raw WebSocket message for {} (first 300 chars): {}",
+            orderbook.symbol,
+            &text[..text.len().min(300)]
+        );
+
         // Try to parse the message, but don't fail if format is unexpected
         let msg: WsMessage = match serde_json::from_str(text) {
             Ok(m) => m,
@@ -124,17 +131,32 @@ impl WebSocketManager {
             }
         };
 
+        debug!(
+            "📬 Parsed message for {} - Channel: {}, has data: {}",
+            orderbook.symbol,
+            msg.channel,
+            msg.data.is_some()
+        );
+
         match msg.channel.as_str() {
             "l2Book" => {
                 if let Some(data) = msg.data {
+                    debug!(
+                        "📊 L2Book data for {} - Coin field: {}, Levels count: {}",
+                        orderbook.symbol,
+                        data.coin,
+                        data.levels.len()
+                    );
                     Self::update_orderbook(orderbook, data).await?;
+                } else {
+                    debug!("⚠️  L2Book message has no data for {}", orderbook.symbol);
                 }
             }
             "subscriptionResponse" => {
-                debug!("Subscription confirmed: {}", text);
+                debug!("✅ Subscription confirmed for {}: {}", orderbook.symbol, text);
             }
             _ => {
-                debug!("Unknown channel: {}", msg.channel);
+                debug!("❓ Unknown channel for {}: {}", orderbook.symbol, msg.channel);
             }
         }
 
@@ -145,8 +167,13 @@ impl WebSocketManager {
         let bids_count = data.levels.get(0).map(|v| v.len()).unwrap_or(0);
         let asks_count = data.levels.get(1).map(|v| v.len()).unwrap_or(0);
 
+        debug!(
+            "🔄 Starting orderbook update - {} | Coin: {} | Bids: {}, Asks: {}",
+            orderbook.symbol, data.coin, bids_count, asks_count
+        );
+
         // Update bids
-        for level in data.levels.get(0).unwrap_or(&vec![]) {
+        for (i, level) in data.levels.get(0).unwrap_or(&vec![]).iter().enumerate() {
             let price = level
                 .px
                 .parse::<Decimal>()
@@ -155,12 +182,17 @@ impl WebSocketManager {
                 .sz
                 .parse::<Decimal>()
                 .map_err(|e| BotError::Parse(format!("Invalid size: {}", e)))?;
+
+            if i == 0 {
+                // Log first bid level for reference
+                debug!("  📈 Best BID: ${} x {}", price, size);
+            }
 
             orderbook.update_level(OrderSide::Bid, price, size);
         }
 
         // Update asks
-        for level in data.levels.get(1).unwrap_or(&vec![]) {
+        for (i, level) in data.levels.get(1).unwrap_or(&vec![]).iter().enumerate() {
             let price = level
                 .px
                 .parse::<Decimal>()
@@ -170,11 +202,16 @@ impl WebSocketManager {
                 .parse::<Decimal>()
                 .map_err(|e| BotError::Parse(format!("Invalid size: {}", e)))?;
 
+            if i == 0 {
+                // Log first ask level for reference
+                debug!("  📉 Best ASK: ${} x {}", price, size);
+            }
+
             orderbook.update_level(OrderSide::Ask, price, size);
         }
 
         debug!(
-            "📖 Orderbook updated - {} | Coin: {} | Bids: {}, Asks: {}",
+            "✅ Orderbook updated - {} | Coin: {} | Bids: {}, Asks: {}",
             orderbook.symbol, data.coin, bids_count, asks_count
         );
 
